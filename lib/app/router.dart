@@ -1,7 +1,6 @@
-import 'dart:developer';
-
 import 'package:client/features/auth/data/auth_providers.dart';
 import 'package:client/features/auth/presentation/auth_screen.dart';
+import 'package:client/features/auth/presentation/profile_screen.dart';
 import 'package:client/features/home/presentation/home_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,7 +11,6 @@ final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: "/",
     redirect: (context, state) {
-      log('$authState');
       final isLoggedIn = authState.value != null;
       final isLoggingIn = state.matchedLocation == '/signin';
 
@@ -33,6 +31,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: "/signin",
         name: "signin",
         builder: (context, state) => const AuthScreen(),
+      ),
+      GoRoute(
+        path: "/profile",
+        name: "profile",
+        builder: (context, state) => const ProfileScreen(),
       ),
     ],
   );

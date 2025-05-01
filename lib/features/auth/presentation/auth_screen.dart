@@ -1,5 +1,4 @@
-import 'dart:async';
-
+import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:client/features/auth/data/auth_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,127 +18,130 @@ class SignInWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: Color(0xFF6E61FD),
-      body: Column(
-        children: [
-          // Top Section (Logo + Slogan)
-          Expanded(
-            flex: 5,
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 40),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.auto_awesome_outlined,
-                      size: 60,
+      backgroundColor: const Color(0xFF6E61FD),
+      body: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Column(
+                children: [
+                  // Top Section (Logo + Slogan)
+                  Expanded(
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 40),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.auto_awesome_outlined,
+                              size: 60,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(height: 50),
+                            const HypnoticSlogan(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Bottom Section (Auth) - will stick to bottom
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 50),
+                    decoration: const BoxDecoration(
                       color: Colors.white,
-                    ), // Primary purple
-                    const SizedBox(height: 50),
-                    HypnoticSlogan(), // Minimal animation
-                  ],
-                ),
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(30),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Echo: Audio Journal',
+                          style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF6E61FD),
+                          ),
+                        ),
+                        const SizedBox(height: 50),
+                        _GoogleSignInButton(ref: ref),
+                        const SizedBox(height: 30),
+                        const Text(
+                          'By continuing, you agree to our Terms & Conditions',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-
-          // Bottom Section (Auth)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 50),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                const Text(
-                  'Echo: Audio Journal',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-
-                    color: Color(0xFF6E61FD),
-                  ),
-                ),
-                const SizedBox(height: 50),
-                _GoogleSignInButton(ref: ref),
-                const SizedBox(height: 30),
-                const Text(
-                  'By continuing, you agree to our Terms & Conditions',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class HypnoticSlogan extends StatefulWidget {
+class HypnoticSlogan extends StatelessWidget {
   const HypnoticSlogan({super.key});
-
-  @override
-  State<HypnoticSlogan> createState() => _HypnoticSloganState();
-}
-
-class _HypnoticSloganState extends State<HypnoticSlogan> {
-  final List<String> _coreWords = ['stories', 'thoughts', 'emotions'];
-  int _currentIndex = 0;
-  late Timer _cycleTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _startWordCycle();
-  }
-
-  void _startWordCycle() {
-    _cycleTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-      setState(() => _currentIndex = (_currentIndex + 1) % _coreWords.length);
-    });
-  }
-
-  @override
-  void dispose() {
-    _cycleTimer.cancel();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Line 1 - Invitation (Fixed)
         const _SloganLine(
           text: 'A place where',
           weight: FontWeight.w600,
           size: 24,
         ),
 
-        // Line 2 - Core Words (Cycling)
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 800),
-          switchInCurve: Curves.easeInOutSine,
-          child: _SloganLine(
-            key: ValueKey(_currentIndex),
-            text: 'your ${_coreWords[_currentIndex]}',
-            weight: FontWeight.w600,
-            size: 40,
-            color: Colors.white,
+        const SizedBox(height: 8),
+
+        // Animated Typer effect
+        SizedBox(
+          width: double.maxFinite,
+          child: DefaultTextStyle(
+            style: const TextStyle(
+              fontSize: 40,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+            child: AnimatedTextKit(
+              isRepeatingAnimation: true,
+              animatedTexts: [
+                TyperAnimatedText(
+                  'your stories',
+                  speed: const Duration(milliseconds: 150),
+                  textAlign: TextAlign.center,
+                ),
+                TyperAnimatedText(
+                  'your thoughts',
+                  speed: const Duration(milliseconds: 150),
+                  textAlign: TextAlign.center,
+                ),
+                TyperAnimatedText(
+                  'your emotions',
+                  speed: const Duration(milliseconds: 150),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ),
 
-        // Line 3 - Action (Fixed)
+        const SizedBox(height: 8),
+
         const _SloganLine(text: 'manifest', weight: FontWeight.w600, size: 24),
       ],
     );
@@ -150,14 +152,11 @@ class _SloganLine extends StatelessWidget {
   final String text;
   final FontWeight weight;
   final double size;
-  final Color? color;
 
   const _SloganLine({
-    super.key,
     required this.text,
     required this.weight,
     required this.size,
-    this.color,
   });
 
   @override
@@ -169,7 +168,7 @@ class _SloganLine extends StatelessWidget {
         style: TextStyle(
           fontWeight: weight,
           fontSize: size,
-          color: color ?? Colors.white,
+          color: Colors.white,
           height: 1.3,
         ),
       ),
@@ -204,7 +203,7 @@ class _GoogleSignInButton extends StatelessWidget {
           const SizedBox(width: 12),
           const Text(
             'Continue with Google',
-            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 15),
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
           ),
         ],
       ),
