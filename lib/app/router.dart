@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:client/features/auth/data/auth_providers.dart';
 import 'package:client/features/auth/presentation/auth_screen.dart';
 import 'package:client/features/home/presentation/home_screen.dart';
@@ -10,6 +12,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: "/",
     redirect: (context, state) {
+      log('$authState');
       final isLoggedIn = authState.value != null;
       final isLoggingIn = state.matchedLocation == '/signin';
 

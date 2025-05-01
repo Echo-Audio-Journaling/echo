@@ -1,4 +1,3 @@
-// auth_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -29,6 +28,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<GoogleSignInAccount?>> {
       state = const AsyncValue.loading();
       await _googleSignIn.signIn();
     } catch (e) {
+      if (e.toString() == "popup_closed") {
+        state = const AsyncValue.data(null);
+        return;
+      }
       state = AsyncValue.error(e, StackTrace.current);
     }
   }

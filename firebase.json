@@ -1,1 +1,25 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"echo-audio-journaling-app","appId":"1:1007138815568:android:28488d5c3cb92f6b9f9b55","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"echo-audio-journaling-app","configurations":{"android":"1:1007138815568:android:28488d5c3cb92f6b9f9b55","ios":"1:1007138815568:ios:c84b4282297276559f9b55","macos":"1:1007138815568:ios:c84b4282297276559f9b55","web":"1:1007138815568:web:29ccc52f33da876d9f9b55","windows":"1:1007138815568:web:210238998c3102579f9b55"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "echo-audio-journaling-app",
+          "appId": "1:1007138815568:android:28488d5c3cb92f6b9f9b55",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "echo-audio-journaling-app",
+          "configurations": {
+            "android": "1:1007138815568:android:28488d5c3cb92f6b9f9b55",
+            "ios": "1:1007138815568:ios:c84b4282297276559f9b55",
+            "macos": "1:1007138815568:ios:c84b4282297276559f9b55",
+            "web": "1:1007138815568:web:29ccc52f33da876d9f9b55",
+            "windows": "1:1007138815568:web:210238998c3102579f9b55"
+          }
+        }
+      }
+    }
+  }
+}
