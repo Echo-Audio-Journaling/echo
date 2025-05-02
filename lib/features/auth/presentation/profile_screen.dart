@@ -1,48 +1,129 @@
 import 'package:client/app/router.dart';
 import 'package:client/features/auth/provider/auth_provider.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class ProfileScreen extends ConsumerWidget {
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authStateProvider).value;
-    final TextEditingController usernameController = TextEditingController(
-      text: user?.displayName ?? '',
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  late TextEditingController usernameController;
+  late TextEditingController aboutController;
+  File? _selectedImage;
+  String? _selectedImageUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = ref.read(authStateProvider).value;
+    usernameController = TextEditingController(text: user?.displayName ?? '');
+    aboutController = TextEditingController(text: 'Tell us about yourself...');
+  }
+
+  @override
+  void dispose() {
+    usernameController.dispose();
+    aboutController.dispose();
+    super.dispose();
+  }
+
+  Future<void> confirmSignOut() async {
+    await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: Colors.white,
+            title: const Text('Sign Out'),
+            content: const Text('Are you sure you want to sign out?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  ref.read(authStateProvider.notifier).signOut();
+                  ref.read(routerProvider).go('/signin');
+                },
+                child: const Text(
+                  'Sign Out',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
     );
-    final TextEditingController aboutController = TextEditingController(
-      text: 'Tell us about yourself...',
+  }
+
+  Future<void> uploadImage() async {
+    final ImagePicker picker = ImagePicker();
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (BuildContext context) {
+        return Container(
+          height: 170,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Text(
+                'Choose image source',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Color(0xFF6E61FD)),
+                title: const Text('Take a photo'),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_library,
+                  color: Color(0xFF6E61FD),
+                ),
+                title: const Text('Choose from gallery'),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+            ],
+          ),
+        );
+      },
     );
 
-    Future<void> confirmSignOut() async {
-      await showDialog<bool>(
-        context: context,
-        builder:
-            (context) => AlertDialog(
-              backgroundColor: Colors.white,
-              title: const Text('Sign Out'),
-              content: const Text('Are you sure you want to sign out?'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    ref.read(authStateProvider.notifier).signOut();
-                    ref.read(routerProvider).go('/signin');
-                  },
-                  child: const Text(
-                    'Sign Out',
-                    style: TextStyle(color: Colors.red),
-                  ),
-                ),
-              ],
-            ),
-      );
+    if (source != null) {
+      final XFile? image = await picker.pickImage(source: source);
+      if (image != null && mounted && !kIsWeb) {
+        setState(() {
+          _selectedImage = File(image.path);
+        });
+      }
+      if (image != null && kIsWeb) {
+        // Handle web image upload here
+        // For example, you can use the `http` package to upload the image to your server
+        // or Firebase Storage.
+        setState(() {
+          _selectedImageUrl = image.path; // Store the image URL or path
+          print(File(image.path));
+        });
+      }
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = ref.watch(authStateProvider).value;
 
     return Scaffold(
       backgroundColor: const Color(0xFF6E61FD),
@@ -81,16 +162,34 @@ class ProfileScreen extends ConsumerWidget {
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 3),
                         ),
-                        child: ClipOval(
-                          child:
-                              user?.photoUrl != null
-                                  ? Image.network(
-                                    user!.photoUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder:
-                                        (_, __, ___) => _DefaultAvatar(),
-                                  )
-                                  : const _DefaultAvatar(),
+                        child: GestureDetector(
+                          onTap: uploadImage,
+                          child: ClipOval(
+                            child:
+                                _selectedImage != null
+                                    ? Image.file(
+                                      _selectedImage!,
+                                      fit: BoxFit.cover,
+                                      width: 120,
+                                      height: 120,
+                                    )
+                                    : user?.photoUrl != null
+                                    ? _selectedImageUrl != null
+                                        ? Image.network(
+                                          _selectedImageUrl!,
+                                          fit: BoxFit.cover,
+                                          width: 120,
+                                          height: 120,
+                                        )
+                                        : Image.network(
+                                          user!.photoUrl!,
+                                          fit: BoxFit.cover,
+                                          errorBuilder:
+                                              (_, __, ___) =>
+                                                  const _DefaultAvatar(),
+                                        )
+                                    : const _DefaultAvatar(),
+                          ),
                         ),
                       ),
                       Container(
@@ -129,7 +228,6 @@ class ProfileScreen extends ConsumerWidget {
                 ],
               ),
             ),
-
             // Part 2: User Info
             Expanded(
               child: Container(
