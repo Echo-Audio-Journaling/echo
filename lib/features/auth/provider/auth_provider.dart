@@ -26,13 +26,14 @@ class AuthNotifier extends StateNotifier<AsyncValue<GoogleSignInAccount?>> {
   Future<void> signIn() async {
     try {
       state = const AsyncValue.loading();
-      await _googleSignIn.signIn();
+      final account = await _googleSignIn.signIn();
+      state = AsyncValue.data(account);
     } catch (e) {
       if (e.toString() == "popup_closed") {
         state = const AsyncValue.data(null);
-        return;
+      } else {
+        state = AsyncValue.error(e, StackTrace.current);
       }
-      state = AsyncValue.error(e, StackTrace.current);
     }
   }
 
