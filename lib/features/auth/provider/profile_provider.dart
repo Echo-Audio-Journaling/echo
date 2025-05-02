@@ -1,6 +1,6 @@
-import 'package:client/features/auth/provider/auth_provider.dart';
-import 'package:client/shared/models/user_profile.dart';
+import 'package:echo/features/auth/provider/auth_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:echo/shared/models/user_profile.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -28,7 +28,7 @@ class UserProfileNotifier extends StateNotifier<AsyncValue<UserProfile?>> {
         error: (e, _) => state = AsyncValue.error(e, StackTrace.current),
         loading: () => state = const AsyncValue.loading(),
       );
-    });
+    }, fireImmediately: true);
   }
 
   Future<void> _handleUserLogin(GoogleSignInAccount account) async {

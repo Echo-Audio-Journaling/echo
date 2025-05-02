@@ -1,7 +1,7 @@
-import 'package:client/features/auth/provider/auth_provider.dart';
-import 'package:client/features/auth/presentation/auth_screen.dart';
-import 'package:client/features/auth/presentation/profile_screen.dart';
-import 'package:client/features/home/presentation/home_screen.dart';
+import 'package:echo/features/auth/provider/auth_provider.dart';
+import 'package:echo/features/auth/presentation/auth_screen.dart';
+import 'package:echo/features/auth/presentation/profile_screen.dart';
+import 'package:echo/features/home/presentation/home_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 

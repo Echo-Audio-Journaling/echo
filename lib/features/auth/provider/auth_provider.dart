@@ -20,7 +20,9 @@ class AuthNotifier extends StateNotifier<AsyncValue<GoogleSignInAccount?>> {
       state = AsyncValue.data(account);
     });
 
-    await _googleSignIn.signInSilently();
+    state = const AsyncValue.loading();
+    final account = await _googleSignIn.signInSilently();
+    state = AsyncValue.data(account);
   }
 
   Future<void> signIn() async {
