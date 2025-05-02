@@ -1,5 +1,5 @@
 import 'package:client/app/router.dart';
-import 'package:client/features/auth/data/auth_providers.dart';
+import 'package:client/features/auth/provider/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,7 +17,7 @@ class ProfileScreen extends ConsumerWidget {
     );
 
     Future<void> confirmSignOut() async {
-      final confirmed = await showDialog<bool>(
+      await showDialog<bool>(
         context: context,
         builder:
             (context) => AlertDialog(
@@ -30,8 +30,10 @@ class ProfileScreen extends ConsumerWidget {
                   child: const Text('Cancel'),
                 ),
                 TextButton(
-                  onPressed:
-                      () => ref.read(authStateProvider.notifier).signOut(),
+                  onPressed: () {
+                    ref.read(authStateProvider.notifier).signOut();
+                    ref.read(routerProvider).go('/signin');
+                  },
                   child: const Text(
                     'Sign Out',
                     style: TextStyle(color: Colors.red),
@@ -40,10 +42,6 @@ class ProfileScreen extends ConsumerWidget {
               ],
             ),
       );
-
-      if (confirmed == true) {
-        await ref.read(authStateProvider.notifier).signOut();
-      }
     }
 
     return Scaffold(

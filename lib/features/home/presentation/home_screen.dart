@@ -1,5 +1,5 @@
 import 'package:client/app/router.dart';
-import 'package:client/features/auth/data/auth_providers.dart';
+import 'package:client/features/auth/provider/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 

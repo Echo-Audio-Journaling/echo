@@ -1,4 +1,4 @@
-import 'package:client/features/auth/data/auth_providers.dart';
+import 'package:client/features/auth/provider/auth_provider.dart';
 import 'package:client/features/auth/presentation/auth_screen.dart';
 import 'package:client/features/auth/presentation/profile_screen.dart';
 import 'package:client/features/home/presentation/home_screen.dart';
