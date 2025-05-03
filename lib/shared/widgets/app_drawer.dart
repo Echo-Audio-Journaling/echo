@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
- 
+
 class AppDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -15,18 +15,16 @@ class AppDrawer extends StatelessWidget {
                 child: Column(
                   children: [
                     Container(
+                      height: 50,
+                      margin: EdgeInsets.symmetric(vertical: 20),
                       child: Image.asset(
                         "assets/images/echo_logo.png",
                         fit: BoxFit.cover,
                       ),
-                      height: 50,
-                      margin: EdgeInsets.symmetric(vertical: 20),
                     ),
                     Text(
                       "Transform your ideas!",
-                      style: TextStyle(
-                        color: Colors.white,
-                      ),
+                      style: TextStyle(color: Colors.white),
                     ),
                   ],
                 ),
@@ -42,7 +40,7 @@ class AppDrawer extends StatelessWidget {
                 leading: Icon(Icons.book),
                 title: Text("Terms and Conditions"),
               ),
-              SizedBox(height: 450,),
+              SizedBox(height: 450),
               Divider(),
               ListTile(
                 onTap: () {},

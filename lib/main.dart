@@ -1,5 +1,5 @@
-import 'package:client/app/router.dart';
-import 'package:client/firebase_options.dart';
+import 'package:echo/app/router.dart';
+import 'package:echo/firebase_options.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +22,7 @@ class EchoApp extends ConsumerWidget {
       title: 'Echo',
       theme: ThemeData(
         textTheme: GoogleFonts.poppinsTextTheme(),
+        primaryColor: const Color(0xFF6E61FD),
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,

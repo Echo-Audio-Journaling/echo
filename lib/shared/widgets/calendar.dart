@@ -1,4 +1,4 @@
-import 'package:echo/screen/date_detail_screen.dart';
+import 'package:echo/features/detail/presentation/date_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'dart:collection';
@@ -39,7 +39,7 @@ class _CustomCalendarState extends State<CustomCalendar> {
     'September',
     'October',
     'November',
-    'December'
+    'December',
   ];
 
   List<Event> _getEventsForDay(DateTime day) {
@@ -68,7 +68,7 @@ class _CustomCalendarState extends State<CustomCalendar> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text("Month:", style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(width: 20,),
+            const SizedBox(width: 20),
             DropdownButton<int>(
               value: _selectedMonth,
               onChanged: (int? newMonth) {
@@ -88,7 +88,7 @@ class _CustomCalendarState extends State<CustomCalendar> {
             ),
             const SizedBox(width: 30),
             const Text("Year:", style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(width: 20,),
+            const SizedBox(width: 20),
             DropdownButton<int>(
               value: _selectedYear,
               onChanged: (int? newYear) {
@@ -168,8 +168,14 @@ class _CustomCalendarState extends State<CustomCalendar> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('${day.day}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      Text(_weekdayShort(day), style: const TextStyle(fontSize: 10)),
+                      Text(
+                        '${day.day}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        _weekdayShort(day),
+                        style: const TextStyle(fontSize: 10),
+                      ),
                     ],
                   ),
                 ),
