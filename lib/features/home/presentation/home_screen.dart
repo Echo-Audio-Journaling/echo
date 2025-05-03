@@ -1,64 +1,238 @@
-import 'package:client/app/router.dart';
-import 'package:client/features/auth/provider/auth_provider.dart';
+import 'dart:collection';
+import 'dart:developer';
+import 'package:echo/app/router.dart';
+import 'package:echo/shared/widgets/app_drawer.dart';
+import 'package:echo/shared/widgets/calendar.dart';
+import 'package:echo/shared/widgets/recent_entry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authStateProvider);
-    return Scaffold(
-      appBar: AppBar(title: const Text('Home')),
-      body: authState.when(
-        data:
-            (user) =>
-                user != null
-                    ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Logged in as:'),
-                          Text(user.displayName ?? 'No name'),
-                          Text(user.email),
-                          Text(user.id),
-                          // New Profile Button
-                          _ProfileButton(),
-                        ],
-                      ),
-                    )
-                    : const Center(child: Text('Not logged in')),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(child: Text('Error: $error')),
-      ),
-    );
-  }
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-// Add this new widget class
-class _ProfileButton extends ConsumerWidget {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  LinkedHashMap<DateTime, List<Event>> sampleEvents = LinkedHashMap.from({
+    DateTime(2025, 4, 2): [Event("A")],
+    DateTime(2025, 4, 3): [Event("A"), Event("B")],
+    DateTime(2025, 4, 11): [Event("A"), Event("B"), Event("C")],
+    DateTime(2025, 4, 16): [Event("X")],
+  });
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return ElevatedButton(
-      onPressed: () => ref.read(routerProvider).go('/profile'),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF6E61FD), // Your brand color
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) {
+    return Scaffold(
+      drawer: AppDrawer(),
+      body: Stack(
         children: [
-          Icon(Icons.person_outline, color: Colors.white),
-          SizedBox(width: 8),
-          Text(
-            'View Profile',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              color: Theme.of(context).primaryColor,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Builder(
+                      builder:
+                          (context) => IconButton(
+                            icon: Image.asset('assets/icons/hamburger.png'),
+                            onPressed: () {
+                              Scaffold.of(context).openDrawer();
+                            },
+                          ),
+                    ),
+                    title: Text(
+                      "Echo",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    trailing: GestureDetector(
+                      onTap: () => ref.read(routerProvider).go('/profile'),
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 3),
+                        child: Icon(
+                          color: Colors.white,
+                          Icons.person_rounded,
+                          size: 30,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    margin: const EdgeInsets.symmetric(vertical: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: const TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Search',
+                        border: InputBorder.none,
+                        icon: Icon(Icons.search, color: Colors.grey),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              "Friday, 25 2025",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              "Good Day!",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              "Aye Chan Aung",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 60),
+                          ],
+                        ),
+                      ),
+                      const CircleAvatar(
+                        radius: 45,
+                        backgroundColor: Colors.white,
+                        child: Icon(
+                          Icons.person_4,
+                          color: Color(0xFF6E61FD),
+                          size: 25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: 250,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(30),
+                  topRight: Radius.circular(30),
+                ),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "Calendar",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    CustomCalendar(events: sampleEvents),
+                    const SizedBox(height: 10),
+                    const Text(
+                      "Recent Entries",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    RecentEntryCard(
+                      title: "Idea on String Theory",
+                      date: "24 Thur, Apr 2025",
+                      time: "12 : 24 PM",
+                    ),
+                    RecentEntryCard(
+                      title: "Note on Relativity",
+                      date: "21 Mon, Apr 2025",
+                      time: "11 : 04 AM",
+                    ),
+                    const SizedBox(height: 100),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 20,
+            left: 0,
+            right: 0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _bottomIconButton(Icons.image_outlined, () {
+                  log("Left button tapped");
+                }),
+                _bottomIconButton(Icons.mic, () {
+                  log("Center button tapped");
+                }, isCenter: true),
+                _bottomIconButton(Icons.upload_file, () {
+                  log("Right button tapped");
+                }),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+Widget _bottomIconButton(
+  IconData icon,
+  VoidCallback onTap, {
+  bool isCenter = false,
+}) {
+  return InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(100),
+    child: Container(
+      width: isCenter ? 80 : 60,
+      height: isCenter ? 80 : 60,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade300, width: 2),
+      ),
+      child: Icon(
+        icon,
+        color: const Color(0xFF6E61FD),
+        size: isCenter ? 32 : 26,
+      ),
+    ),
+  );
 }
