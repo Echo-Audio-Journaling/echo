@@ -1,3 +1,4 @@
+import 'package:client/features/auth/presentation/detail_screen_page.dart';
 import 'package:client/features/auth/provider/auth_provider.dart';
 import 'package:client/features/auth/presentation/auth_screen.dart';
 import 'package:client/features/auth/presentation/profile_screen.dart';
@@ -37,6 +38,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: "profile",
         builder: (context, state) => const ProfileScreen(),
       ),
+      GoRoute(
+        path: "/detail_screen",
+        name: "detail_screen",
+        builder: (context, state) => const DetailScreenPage(),
+      ),
+      
     ],
   );
 
