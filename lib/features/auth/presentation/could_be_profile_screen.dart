@@ -1,17 +1,21 @@
 import 'package:echo/features/edit/presentation/edit_screen.dart';
 import 'package:flutter/material.dart';
 
-class ProfileScreen extends StatefulWidget {
+class CouldBeProfileScreen extends StatefulWidget {
   final String name;
   final String gmail;
 
-  const ProfileScreen({required this.name, required this.gmail, super.key});
+  const CouldBeProfileScreen({
+    required this.name,
+    required this.gmail,
+    super.key,
+  });
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  State<CouldBeProfileScreen> createState() => _CouldBeProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _CouldBeProfileScreenState extends State<CouldBeProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(

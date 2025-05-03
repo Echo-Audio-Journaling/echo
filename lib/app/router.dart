@@ -1,11 +1,10 @@
 import 'package:echo/features/auth/provider/auth_provider.dart';
 import 'package:echo/features/auth/presentation/auth_screen.dart';
-import 'package:echo/features/auth/presentation/profile_screen.dart';
 import 'package:echo/features/detail/presentation/date_detail_screen.dart';
-import 'package:echo/features/edit/presentation/edit_screen.dart';
 import 'package:echo/features/home/presentation/home_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:echo/features/auth/presentation/profile_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
