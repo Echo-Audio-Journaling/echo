@@ -602,8 +602,13 @@ class _DefaultAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFFC6C2FF),
-      child: const Center(
-        child: Icon(Icons.person, color: Color(0xFF281CA3), size: 50),
+      child: Center(
+        child: Image.asset(
+          'assets/profile/default_profile.png',
+          width: 50,
+          height: 50,
+          fit: BoxFit.cover,
+        ),
       ),
     );
   }

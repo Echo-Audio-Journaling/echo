@@ -24,6 +24,7 @@ class EchoApp extends ConsumerWidget {
         textTheme: GoogleFonts.poppinsTextTheme(),
         primaryColor: const Color(0xFF6E61FD),
         useMaterial3: true,
+        splashFactory: NoSplash.splashFactory,
       ),
       debugShowCheckedModeBanner: false,
     );

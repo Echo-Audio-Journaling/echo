@@ -23,6 +23,7 @@ dependencies:
   freezed_annotation: ^3.0.0
   json_annotation: ^4.9.0
   fluttertoast: ^8.2.12
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:
@@ -37,3 +38,4 @@ flutter:
   assets:
     - assets/icons/
     - assets/images/
+    - assets/profile/
