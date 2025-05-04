@@ -60,6 +60,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       context: context,
       builder:
           (context) => AlertDialog(
+            backgroundColor: Colors.white,
             title: const Text('Sign Out'),
             content: const Text('Are you sure you want to sign out?'),
             actions: [
@@ -600,16 +601,6 @@ class _DefaultAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFFC6C2FF),
-      child: Center(
-        child: Image.asset(
-          'assets/profile/default_profile.png',
-          width: 50,
-          height: 50,
-          fit: BoxFit.cover,
-        ),
-      ),
-    );
+    return Image.asset('assets/profile/default_profile.png', fit: BoxFit.cover);
   }
 }

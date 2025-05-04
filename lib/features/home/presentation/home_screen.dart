@@ -1,5 +1,7 @@
+import 'package:echo/app/router.dart';
 import 'package:echo/features/home/widgets/journal_calendar.dart';
 import 'package:echo/features/home/widgets/random_prompts.dart';
+import 'package:echo/features/home/widgets/recent_entries_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -124,12 +126,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 color: Colors.red,
                               ),
                               child: Center(
-                                child: ClipOval(
-                                  child: Image.asset(
-                                    'assets/profile/default_profile.png',
-                                    height: 80,
-                                    width: 80,
-                                    fit: BoxFit.cover,
+                                child: GestureDetector(
+                                  onTap:
+                                      () => ref
+                                          .read(routerProvider)
+                                          .go('/profile'),
+                                  child: ClipOval(
+                                    child: Image.asset(
+                                      'assets/profile/default_profile.png',
+                                      height: 80,
+                                      width: 80,
+                                      fit: BoxFit.cover,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -170,6 +178,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           RandomPrompts(),
                           SizedBox(height: 24),
                           JournalCalendar(),
+                          SizedBox(height: 24),
+                          RecentEntriesSection(
+                            title: 'Recent Entries',
+                            accentColor: const Color(0xFF6E61FD),
+                          ),
                         ],
                       ),
                     ),

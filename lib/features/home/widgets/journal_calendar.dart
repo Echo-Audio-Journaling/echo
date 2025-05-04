@@ -1,8 +1,12 @@
 import 'dart:collection';
 
-import 'package:echo/shared/widgets/calendar.dart';
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
+
+class Event {
+  final String title;
+  const Event(this.title);
+}
 
 class JournalCalendar extends StatefulWidget {
   final LinkedHashMap<DateTime, List<Event>> events = LinkedHashMap(
@@ -65,7 +69,11 @@ class JournalCalendar extends StatefulWidget {
     ],
   });
 
-  JournalCalendar({super.key});
+  // Added parameters for min and max years
+  final int? minYear;
+  final int? maxYear;
+
+  JournalCalendar({super.key, this.minYear = 2020, this.maxYear = 2030});
 
   @override
   State<JournalCalendar> createState() => _JournalCalendarState();
@@ -85,6 +93,384 @@ class _JournalCalendarState extends State<JournalCalendar> {
 
   List<Event> _getEventsForDay(DateTime day) {
     return widget.events[DateTime(day.year, day.month, day.day)] ?? [];
+  }
+
+  // Show month and year picker dialog
+  void _showMonthYearPicker() {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+
+    // Initialize with current values
+    int selectedMonth = _focusedDay.month;
+    int selectedYear = _focusedDay.year;
+
+    // Get min and max years
+    final int minYear = widget.minYear ?? 2020;
+    final int maxYear = widget.maxYear ?? 2030;
+
+    // Create list of years
+    final List<int> years = List.generate(
+      maxYear - minYear + 1,
+      (index) => minYear + index,
+    );
+
+    // Month names
+    final List<String> monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDarkMode ? Color(0xFF1E1E1E) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Select Date',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: _baseColor,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: Icon(
+                            Icons.close,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ],
+                    ),
+                    Divider(height: 24),
+
+                    // Tabs for Month and Year
+                    Container(
+                      margin: EdgeInsets.symmetric(horizontal: 8),
+                      decoration: BoxDecoration(
+                        color:
+                            isDarkMode ? Color(0xFF2D2D2D) : Color(0xFFF5F5F5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: DefaultTabController(
+                        length: 2,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TabBar(
+                              indicatorColor: _baseColor,
+                              indicatorSize: TabBarIndicatorSize.tab,
+                              labelColor: _baseColor,
+                              unselectedLabelColor:
+                                  isDarkMode ? Colors.white70 : Colors.black54,
+                              tabs: [Tab(text: 'MONTH'), Tab(text: 'YEAR')],
+                            ),
+                            SizedBox(
+                              height: 220,
+                              child: TabBarView(
+                                children: [
+                                  // Month Tab
+                                  Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: GridView.builder(
+                                      gridDelegate:
+                                          SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: 3,
+                                            childAspectRatio: 2.0,
+                                            crossAxisSpacing: 4,
+                                            mainAxisSpacing: 4,
+                                          ),
+                                      itemCount: 12,
+                                      itemBuilder: (context, index) {
+                                        final int month = index + 1;
+                                        final bool isSelected =
+                                            month == selectedMonth;
+
+                                        return AnimatedContainer(
+                                          margin: EdgeInsets.zero,
+                                          duration: Duration(milliseconds: 200),
+                                          decoration: BoxDecoration(
+                                            color:
+                                                isSelected
+                                                    ? _baseColor
+                                                    : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
+                                              color:
+                                                  isSelected
+                                                      ? _baseColor
+                                                      : isDarkMode
+                                                      ? Colors.white30
+                                                      : Colors.black12,
+                                              width: 1,
+                                            ),
+                                          ),
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              onTap: () {
+                                                setState(() {
+                                                  selectedMonth = month;
+                                                });
+                                              },
+                                              child: Center(
+                                                child: Text(
+                                                  monthNames[index].substring(
+                                                    0,
+                                                    3,
+                                                  ),
+                                                  style: TextStyle(
+                                                    color:
+                                                        isSelected
+                                                            ? Colors.white
+                                                            : theme
+                                                                .colorScheme
+                                                                .onSurface,
+                                                    fontWeight:
+                                                        isSelected
+                                                            ? FontWeight.bold
+                                                            : FontWeight.normal,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+
+                                  // Year Tab
+                                  Padding(
+                                    padding: const EdgeInsets.all(12.0),
+                                    child: GridView.builder(
+                                      gridDelegate:
+                                          SliverGridDelegateWithFixedCrossAxisCount(
+                                            crossAxisCount: 3,
+                                            childAspectRatio: 1.5,
+                                            crossAxisSpacing: 8,
+                                            mainAxisSpacing: 8,
+                                          ),
+                                      itemCount: years.length,
+                                      itemBuilder: (context, index) {
+                                        final int year = years[index];
+                                        final bool isSelected =
+                                            year == selectedYear;
+                                        final bool isCurrent =
+                                            year == DateTime.now().year;
+
+                                        return AnimatedContainer(
+                                          margin: EdgeInsets.zero,
+                                          duration: Duration(milliseconds: 200),
+                                          decoration: BoxDecoration(
+                                            color:
+                                                isSelected
+                                                    ? _baseColor
+                                                    : Colors.transparent,
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
+                                            border: Border.all(
+                                              color:
+                                                  isSelected
+                                                      ? _baseColor
+                                                      : isCurrent
+                                                      ? _baseColor.withOpacity(
+                                                        0.5,
+                                                      )
+                                                      : isDarkMode
+                                                      ? Colors.white30
+                                                      : Colors.black12,
+                                              width: isCurrent ? 2 : 1,
+                                            ),
+                                          ),
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              onTap: () {
+                                                setState(() {
+                                                  selectedYear = year;
+                                                });
+                                              },
+                                              child: Center(
+                                                child: Text(
+                                                  year.toString(),
+                                                  style: TextStyle(
+                                                    color:
+                                                        isSelected
+                                                            ? Colors.white
+                                                            : isCurrent
+                                                            ? _baseColor
+                                                            : theme
+                                                                .colorScheme
+                                                                .onSurface,
+                                                    fontWeight:
+                                                        isSelected || isCurrent
+                                                            ? FontWeight.bold
+                                                            : FontWeight.normal,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    SizedBox(height: 24),
+
+                    // Current Selection Preview
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            isDarkMode ? Color(0xFF2D2D2D) : Color(0xFFF5F5F5),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Selected: ',
+                            style: TextStyle(
+                              color:
+                                  isDarkMode ? Colors.white70 : Colors.black54,
+                            ),
+                          ),
+                          Text(
+                            '${monthNames[selectedMonth - 1]} $selectedYear',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: _baseColor,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 24),
+
+                    // Action Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            child: Text(
+                              'CANCEL',
+                              style: TextStyle(
+                                color:
+                                    isDarkMode
+                                        ? Colors.white70
+                                        : Colors.black54,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            // Update focused day in parent widget
+                            this.setState(() {
+                              _focusedDay = DateTime(
+                                selectedYear,
+                                selectedMonth,
+                                1,
+                              );
+                            });
+                            Navigator.of(context).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _baseColor,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                          child: Text(
+                            'APPLY',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -128,10 +514,36 @@ class _JournalCalendarState extends State<JournalCalendar> {
                   });
                 },
               ),
-              Text(
-                '${_getMonthName(_focusedDay.month)} ${_focusedDay.year}',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+              // Modified to be clickable with visual indicator
+              InkWell(
+                onTap: _showMonthYearPicker,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: theme.colorScheme.secondary.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${_getMonthName(_focusedDay.month)} ${_focusedDay.year}',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.arrow_drop_down,
+                        size: 18,
+                        color: theme.colorScheme.secondary,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               IconButton(
@@ -155,8 +567,8 @@ class _JournalCalendarState extends State<JournalCalendar> {
 
         // Calendar
         TableCalendar<Event>(
-          firstDay: DateTime.utc(2020, 1, 1),
-          lastDay: DateTime.utc(2030, 12, 31),
+          firstDay: DateTime.utc(widget.minYear ?? 2020, 1, 1),
+          lastDay: DateTime.utc(widget.maxYear ?? 2030, 12, 31),
           focusedDay: _focusedDay,
           selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
           startingDayOfWeek: StartingDayOfWeek.monday,
@@ -183,6 +595,7 @@ class _JournalCalendarState extends State<JournalCalendar> {
           },
           onPageChanged: (focusedDay) {
             _focusedDay = focusedDay;
+            setState(() {});
           },
           calendarBuilders: CalendarBuilders<Event>(
             defaultBuilder: (context, day, focusedDay) {
