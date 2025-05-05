@@ -1,0 +1,319 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:echo/features/auth/provider/auth_provider.dart';
+import 'package:echo/shared/models/log_entry.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
+
+// Define the provider for log entries
+final logEntriesProvider =
+    StateNotifierProvider<LogEntriesNotifier, AsyncValue<List<LogEntry>>>((
+      ref,
+    ) {
+      final authState = ref.watch(authStateProvider);
+      return LogEntriesNotifier(authState.valueOrNull?.id);
+    });
+
+class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final String? _userId;
+
+  LogEntriesNotifier(this._userId) : super(const AsyncValue.loading());
+
+  Future<void> fetchLogEntriesForDate(DateTime date) async {
+    if (_userId == null) {
+      state = const AsyncValue.error(
+        'User not authenticated',
+        StackTrace.empty,
+      );
+      return;
+    }
+
+    try {
+      state = const AsyncValue.loading();
+
+      // Create date range for the entire day
+      final startOfDay = DateTime(date.year, date.month, date.day);
+      final endOfDay = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        23,
+        59,
+        59,
+        999,
+      );
+
+      // Query Firestore for log entries
+      final querySnapshot =
+          await _firestore
+              .collection('users')
+              .doc(_userId)
+              .collection('logs')
+              .where(
+                'timestamp',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
+              )
+              .where(
+                'timestamp',
+                isLessThanOrEqualTo: Timestamp.fromDate(endOfDay),
+              )
+              .orderBy('timestamp', descending: false)
+              .get();
+
+      // Convert query results to LogEntry objects
+      final logEntries =
+          querySnapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id; // Add document ID to the data
+            return LogEntry.fromJson(data);
+          }).toList();
+
+      state = AsyncValue.data(logEntries);
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        print('Error fetching log entries: $error');
+      }
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  // Add a new audio log entry
+  Future<String?> addAudioLogEntry({
+    required String audioUrl,
+    required String transcription,
+    required Duration duration,
+    String? title,
+    DateTime? timestamp,
+  }) async {
+    if (_userId == null) return null;
+
+    try {
+      // Generate a default title if none is provided
+      final entryTitle =
+          title ?? _generateTitleFromTranscription(transcription);
+      final entryTimestamp = timestamp ?? DateTime.now();
+      final entryId = const Uuid().v4(); // Generate a unique ID
+
+      // Create the audio log entry
+      final audioEntry = AudioLogEntry(
+        id: entryId,
+        timestamp: entryTimestamp,
+        title: entryTitle,
+        audioUrl: audioUrl,
+        transcription: transcription,
+        duration: duration,
+        isPlaying: false,
+      );
+
+      // Save to Firestore
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('logs')
+          .doc(entryId)
+          .set(audioEntry.toJson());
+
+      // Update local state
+      state = state.whenData((entries) {
+        return [...entries, audioEntry]
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      });
+
+      return entryId;
+    } catch (error) {
+      if (kDebugMode) {
+        print('Error adding audio log entry: $error');
+      }
+      return null;
+    }
+  }
+
+  // Add a new image log entry
+  Future<String?> addImageLogEntry({
+    required String imageUrl,
+    String? title,
+    String? description,
+    DateTime? timestamp,
+  }) async {
+    if (_userId == null) return null;
+
+    try {
+      // Generate a default title if none is provided
+      final entryTitle = title ?? 'Image ${DateTime.now().toIso8601String()}';
+      final entryTimestamp = timestamp ?? DateTime.now();
+      final entryId = const Uuid().v4(); // Generate a unique ID
+
+      // Create the image log entry
+      final imageEntry = ImageLogEntry(
+        id: entryId,
+        timestamp: entryTimestamp,
+        title: entryTitle,
+        imageUrl: imageUrl,
+        description: description,
+      );
+
+      // Save to Firestore
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('logs')
+          .doc(entryId)
+          .set(imageEntry.toJson());
+
+      // Update local state
+      state = state.whenData((entries) {
+        return [...entries, imageEntry]
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      });
+
+      return entryId;
+    } catch (error) {
+      if (kDebugMode) {
+        print('Error adding image log entry: $error');
+      }
+      return null;
+    }
+  }
+
+  // Add a new video log entry
+  Future<String?> addVideoLogEntry({
+    required String videoUrl,
+    required Duration duration,
+    String? title,
+    String? description,
+    String? thumbnailUrl,
+    DateTime? timestamp,
+  }) async {
+    if (_userId == null) return null;
+
+    try {
+      // Generate a default title if none is provided
+      final entryTitle = title ?? 'Video ${DateTime.now().toIso8601String()}';
+      final entryTimestamp = timestamp ?? DateTime.now();
+      final entryId = const Uuid().v4(); // Generate a unique ID
+
+      // Create the video log entry
+      final videoEntry = VideoLogEntry(
+        id: entryId,
+        timestamp: entryTimestamp,
+        title: entryTitle,
+        videoUrl: videoUrl,
+        duration: duration,
+        description: description,
+        thumbnailUrl: thumbnailUrl,
+      );
+
+      // Save to Firestore
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('logs')
+          .doc(entryId)
+          .set(videoEntry.toJson());
+
+      // Update local state
+      state = state.whenData((entries) {
+        return [...entries, videoEntry]
+          ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      });
+
+      return entryId;
+    } catch (error) {
+      if (kDebugMode) {
+        print('Error adding video log entry: $error');
+      }
+      return null;
+    }
+  }
+
+  // Update log entry title
+  Future<void> updateLogEntryTitle(String entryId, String newTitle) async {
+    if (_userId == null) return;
+
+    try {
+      // Update in Firestore
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('logs')
+          .doc(entryId)
+          .update({'title': newTitle});
+
+      // Update locally in state
+      state = state.whenData((entries) {
+        return entries.map((entry) {
+          if (entry.id == entryId) {
+            entry.title = newTitle;
+          }
+          return entry;
+        }).toList();
+      });
+    } catch (error) {
+      if (kDebugMode) {
+        print('Error updating entry title: $error');
+      }
+    }
+  }
+
+  // Delete log entry
+  Future<void> deleteLogEntry(String entryId) async {
+    if (_userId == null) return;
+
+    try {
+      // Delete from Firestore
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('logs')
+          .doc(entryId)
+          .delete();
+
+      // Remove from local state
+      state = state.whenData((entries) {
+        return entries.where((entry) => entry.id != entryId).toList();
+      });
+    } catch (error) {
+      if (kDebugMode) {
+        print('Error deleting entry: $error');
+      }
+    }
+  }
+
+  // Toggle audio playing state
+  void toggleAudioPlaying(String audioEntryId, bool isPlaying) {
+    state = state.whenData((entries) {
+      return entries.map((entry) {
+        if (entry is AudioLogEntry && entry.id == audioEntryId) {
+          return AudioLogEntry(
+            id: entry.id,
+            timestamp: entry.timestamp,
+            title: entry.title,
+            audioUrl: entry.audioUrl,
+            transcription: entry.transcription,
+            duration: entry.duration,
+            isPlaying: isPlaying,
+          );
+        }
+        return entry;
+      }).toList();
+    });
+  }
+
+  // Helper method to generate a title from transcription
+  String _generateTitleFromTranscription(String transcription) {
+    // Get the first 5-7 words from the transcription
+    final words = transcription.split(' ');
+    final titleWords = words
+        .take(words.length < 7 ? words.length : 7)
+        .join(' ');
+
+    // If title is too short, use a generic title with timestamp
+    if (titleWords.length < 10) {
+      return 'Audio Journal ${DateTime.now().toString().substring(0, 16)}';
+    }
+
+    // Add ellipsis if we truncated the transcription
+    return words.length > 7 ? '$titleWords...' : titleWords;
+  }
+}

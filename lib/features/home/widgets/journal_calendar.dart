@@ -1,6 +1,7 @@
 import 'dart:collection';
-
+import 'package:echo/app/router.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 class Event {
@@ -8,7 +9,7 @@ class Event {
   const Event(this.title);
 }
 
-class JournalCalendar extends StatefulWidget {
+class JournalCalendar extends ConsumerStatefulWidget {
   final LinkedHashMap<DateTime, List<Event>> events = LinkedHashMap(
     equals: isSameDay,
     hashCode:
@@ -76,10 +77,10 @@ class JournalCalendar extends StatefulWidget {
   JournalCalendar({super.key, this.minYear = 2020, this.maxYear = 2030});
 
   @override
-  State<JournalCalendar> createState() => _JournalCalendarState();
+  ConsumerState<JournalCalendar> createState() => _JournalCalendarState();
 }
 
-class _JournalCalendarState extends State<JournalCalendar> {
+class _JournalCalendarState extends ConsumerState<JournalCalendar> {
   late DateTime _focusedDay;
   DateTime? _selectedDay;
   final Color _baseColor = const Color(0xFF6E61FD);
@@ -478,6 +479,9 @@ class _JournalCalendarState extends State<JournalCalendar> {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
 
+    // Here you can access Riverpod providers using ref if needed
+    // Example: final someState = ref.watch(someProvider);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -588,6 +592,13 @@ class _JournalCalendarState extends State<JournalCalendar> {
             cellMargin: const EdgeInsets.all(4),
           ),
           onDaySelected: (selectedDay, focusedDay) {
+            // Navigate to date detail page with the selected date parameters
+            final year = selectedDay.year;
+            final month = selectedDay.month;
+            final day = selectedDay.day;
+
+            // Use the router to navigate to the date detail page
+            ref.read(routerProvider).go('/date/$year/$month/$day');
             setState(() {
               _selectedDay = selectedDay;
               _focusedDay = focusedDay;

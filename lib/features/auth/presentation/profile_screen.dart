@@ -6,7 +6,6 @@ import 'package:echo/shared/utils/storage_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -18,30 +17,41 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  // Controllers
   late final TextEditingController _usernameController;
   late final TextEditingController _aboutController;
+
+  // Image state
   File? _selectedImage;
   String? _selectedImageUrl;
-  bool _isSaving = false; // Track overall saving state
-  bool _isImageUploading = false; // Track specific image upload state
-  String _loadingMessage = 'Loading...'; // Dynamic loading message
+
+  // Loading states
+  bool _isSaving = false;
+  bool _isImageUploading = false;
+  String _loadingMessage = 'Loading...';
 
   @override
   void initState() {
     super.initState();
-    _usernameController = TextEditingController();
-    _aboutController = TextEditingController();
-    _initializeControllers();
+    _initControllers();
   }
 
-  void _initializeControllers() {
-    final user = ref.read(userProfileProvider).value;
+  void _initControllers() {
+    _usernameController = TextEditingController();
+    _aboutController = TextEditingController();
+
+    // Initialize with user data after frame is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (user != null) {
-        _usernameController.text = user.username;
-        _aboutController.text = user.about ?? 'About yourself...';
-      }
+      _populateUserData();
     });
+  }
+
+  void _populateUserData() {
+    final user = ref.read(userProfileProvider).value;
+    if (user != null) {
+      _usernameController.text = user.username;
+      _aboutController.text = user.about ?? 'About yourself...';
+    }
   }
 
   @override
@@ -51,16 +61,174 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _handleSignOut() async {
-    final shouldSignOut = await _showSignOutConfirmation();
-    if (shouldSignOut == true) {
-      await ref.read(authStateProvider.notifier).signOut();
-      ref.read(routerProvider).go('/signin');
+  // Image selection
+  Future<void> _pickImage() async {
+    if (_isImageUploading) return;
+
+    final source = await _showImageSourceOptions();
+    if (source == null) return;
+
+    setState(() => _isImageUploading = true);
+
+    try {
+      final image = await ImagePicker().pickImage(
+        source: source,
+        maxHeight: 1200,
+        maxWidth: 1200,
+        imageQuality: 85,
+      );
+
+      if (image == null || !mounted) {
+        setState(() => _isImageUploading = false);
+        return;
+      }
+
+      setState(() {
+        if (kIsWeb) {
+          _selectedImageUrl = image.path;
+        } else {
+          _selectedImage = File(image.path);
+        }
+        _isImageUploading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isImageUploading = false);
+        _showToast('Failed to select image: $e', isError: true);
+      }
     }
   }
 
-  Future<bool?> _showSignOutConfirmation() async {
-    return showDialog<bool>(
+  Future<ImageSource?> _showImageSourceOptions() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      builder:
+          (context) => Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Choose image source',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(
+                    Icons.camera_alt,
+                    color: Color(0xFF6E61FD),
+                  ),
+                  title: const Text('Take a photo'),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.photo_library,
+                    color: Color(0xFF6E61FD),
+                  ),
+                  title: const Text('Choose from gallery'),
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  // Save profile changes
+  Future<void> _saveProfile() async {
+    if (_isSaving) return;
+
+    setState(() {
+      _isSaving = true;
+      _loadingMessage = 'Saving profile...';
+    });
+
+    final profile = ref.read(userProfileProvider).value;
+    if (profile == null) {
+      setState(() => _isSaving = false);
+      _showToast('Error: User profile not found.', isError: true);
+      return;
+    }
+
+    try {
+      // Handle image upload
+      String? imageUrl;
+      final storageService = StorageService();
+
+      if (_selectedImage != null || _selectedImageUrl != null) {
+        // Delete old image if it exists
+        if (profile.photoUrl != null) {
+          try {
+            final oldImagePath = await storageService.getReferencePathFromUrl(
+              profile.photoUrl!,
+            );
+            if (oldImagePath != null) {
+              await storageService.deleteFile(oldImagePath);
+            }
+          } catch (e) {
+            debugPrint('Error deleting old image: $e');
+          }
+        }
+
+        // Upload new image
+        if (_selectedImage != null) {
+          try {
+            imageUrl = await _uploadImageWithTimeout(
+              storageService,
+              XFile(_selectedImage!.path),
+              profile.uid,
+            );
+          } catch (e) {
+            _showToast('Image upload timed out', isError: true);
+            setState(() => _isSaving = false);
+            return;
+          }
+        } else if (_selectedImageUrl != null) {
+          imageUrl = _selectedImageUrl;
+        }
+      }
+
+      // Update profile data
+      final updatedProfile = UserProfile(
+        uid: profile.uid,
+        email: profile.email,
+        username: _usernameController.text,
+        about: _aboutController.text,
+        photoUrl: imageUrl ?? profile.photoUrl,
+        level: profile.level,
+        isNewUser: false,
+      );
+
+      await ref
+          .read(userProfileProvider.notifier)
+          .updateProfile(updatedProfile);
+
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _showToast('Profile updated successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _showToast('Failed to update profile: $e', isError: true);
+      }
+    }
+  }
+
+  Future<String?> _uploadImageWithTimeout(
+    StorageService storageService,
+    XFile file,
+    String uid,
+  ) {
+    return storageService
+        .uploadXFile(file, uid)
+        .timeout(const Duration(seconds: 30));
+  }
+
+  // Sign out
+  Future<void> _signOut() async {
+    final shouldSignOut = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
@@ -82,454 +250,119 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ],
           ),
     );
-  }
 
-  Future<void> _pickImage() async {
-    // Don't allow picking a new image while one is being uploaded
-    if (_isImageUploading) return;
-
-    final source = await _showImageSourceSelector();
-    if (source == null) return;
-
-    try {
-      setState(() => _isImageUploading = true);
-
-      final image = await ImagePicker().pickImage(
-        source: source,
-        // Optimize by compressing the image before upload
-        maxHeight: 1200,
-        maxWidth: 1200,
-        imageQuality: 85,
-      );
-
-      if (image == null) {
-        setState(() => _isImageUploading = false);
-        return;
-      }
-
-      if (!mounted) return;
-
-      if (kIsWeb) {
-        setState(() {
-          _selectedImageUrl = image.path;
-          _isImageUploading = false;
-        });
-      } else {
-        setState(() {
-          _selectedImage = File(image.path);
-          _isImageUploading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isImageUploading = false);
-        _showErrorToast('Failed to select image: ${e.toString()}');
-      }
+    if (shouldSignOut == true) {
+      await ref.read(authStateProvider.notifier).signOut();
+      ref.read(routerProvider).go('/signin');
     }
   }
 
-  void _showErrorToast(String message) {
-    Fluttertoast.showToast(
-      msg: message,
-      toastLength: Toast.LENGTH_LONG,
-      gravity: ToastGravity.BOTTOM,
-      backgroundColor: Colors.red,
-      textColor: Colors.white,
+  // Helper to display toast notifications
+  void _showToast(String message, {bool isError = false}) {
+    final successSnackBar = SnackBar(
+      content: Text(message),
+      backgroundColor: isError ? Colors.red : Colors.green,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
-  }
-
-  Future<ImageSource?> _showImageSourceSelector() async {
-    return showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (context) => _ImageSourceBottomSheet(),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(successSnackBar);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Watch the userProfileProvider to react to its state changes
     final userProfileState = ref.watch(userProfileProvider);
 
-    // Listen for changes to update controllers when data is loaded
+    // Update controllers when user data changes
     ref.listen<AsyncValue<UserProfile?>>(userProfileProvider, (_, next) {
-      next.when(
-        data: (user) {
-          if (user != null) {
-            _usernameController.text = user.username;
-            _aboutController.text = user.about ?? 'About yourself...';
-          }
-        },
-        error: (e, _) => debugPrint('Error fetching user profile: $e'),
-        loading: () => debugPrint('Loading user profile...'),
-      );
+      next.whenData((user) {
+        if (user != null) {
+          _usernameController.text = user.username;
+          _aboutController.text = user.about ?? 'About yourself...';
+        }
+      });
     });
 
-    // Return a Scaffold with either loading indicator or profile content
     return Scaffold(
       backgroundColor: const Color(0xFF6E61FD),
-      appBar: _ProfileAppBar(onBack: () => ref.read(routerProvider).go('/')),
-      // Show saving overlay if saving
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF6E61FD),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => ref.read(routerProvider).go('/'),
+        ),
+        title: const Text(
+          'Profile',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
       body: Stack(
         children: [
           SafeArea(
             child: userProfileState.when(
-              // Show loading indicator while data is loading
-              loading:
-                  () => const _LoadingProfile(message: 'Loading profile...'),
-
-              // Show error state if there's an error
+              loading: () => _buildLoadingView('Loading profile...'),
               error:
-                  (error, stackTrace) => _ErrorProfile(
-                    error: error.toString(),
-                    onRetry: () => ref.refresh(userProfileProvider),
+                  (error, _) => _buildErrorView(
+                    error.toString(),
+                    () => ref.refresh(userProfileProvider),
                   ),
-
-              // Show profile content when data is loaded
-              data: (user) {
-                if (user == null) {
-                  // Handle case where user is null (not logged in or data not found)
-                  return const _ErrorProfile(
-                    error: 'User profile not found',
-                    onRetry: null,
-                  );
-                }
-
-                return Column(
-                  children: [
-                    _ProfileHeader(
-                      user: user,
-                      selectedImage: _selectedImage,
-                      selectedImageUrl: _selectedImageUrl,
-                      onImagePressed: _pickImage,
-                      isImageUploading: _isImageUploading,
-                    ),
-                    _ProfileForm(
-                      usernameController: _usernameController,
-                      aboutController: _aboutController,
-                      email: user.email,
-                      onSave: () => _saveProfile(),
-                      onSignOut: _handleSignOut,
-                      isSaving: _isSaving,
-                    ),
-                  ],
-                );
-              },
+              data:
+                  (user) =>
+                      user == null
+                          ? _buildErrorView('User profile not found', null)
+                          : _buildProfileView(user),
             ),
           ),
-          // Show saving overlay if necessary
-          if (_isSaving) _SavingOverlay(message: _loadingMessage),
+          if (_isSaving) _buildSavingOverlay(),
         ],
       ),
     );
   }
 
-  Future<void> _saveProfile() async {
-    if (_isSaving) return; // Prevent multiple save operations
-
-    setState(() {
-      _isSaving = true;
-      _loadingMessage = 'Saving profile...';
-    });
-
-    final profile = ref.read(userProfileProvider).value;
-    if (profile == null) {
-      setState(() => _isSaving = false);
-      _showErrorToast('Error: User profile not found.');
-      return;
-    }
-
-    try {
-      // Upload image if there is one
-      String? imageUrl;
-      final StorageService storageService = StorageService();
-      setState(() => _loadingMessage = 'Updating profile data...');
-
-      if (_selectedImage != null || _selectedImageUrl != null) {
-        // setState(() => _loadingMessage = 'Processing image...');
-
-        // First delete the old image if it exists
-        if (profile.photoUrl != null) {
-          // setState(() => _loadingMessage = 'Removing old image...');
-          try {
-            final oldImagePath = await storageService.getReferencePathFromUrl(
-              profile.photoUrl!,
-            );
-            if (oldImagePath != null) {
-              await storageService.deleteFile(oldImagePath);
-            }
-          } catch (e) {
-            // If error deleting old image, continue with upload anyway
-            debugPrint('Error deleting old image: $e');
-          }
-        }
-
-        // Upload the new image with optimized approach
-        // setState(() => _loadingMessage = 'Uploading new image...');
-        if (_selectedImage != null) {
-          // Optimize by uploading in a try-catch block with timeout
-          try {
-            imageUrl = await _uploadImageWithTimeout(
-              storageService,
-              XFile(_selectedImage!.path),
-              profile.uid,
-            );
-          } catch (e) {
-            _showErrorToast('Image upload timed out. Try again later.');
-            setState(() => _isSaving = false);
-            return;
-          }
-        } else if (_selectedImageUrl != null) {
-          // Handle web platforms
-          imageUrl = _selectedImageUrl;
-        }
-      }
-
-      // Update profile in Firestore
-      final updatedProfile = UserProfile(
-        uid: profile.uid,
-        email: profile.email,
-        username: _usernameController.text,
-        about: _aboutController.text,
-        photoUrl: imageUrl ?? profile.photoUrl,
-        level: profile.level,
-        isNewUser: false,
-      );
-
-      await ref
-          .read(userProfileProvider.notifier)
-          .updateProfile(updatedProfile);
-
-      // Success state
-      if (mounted) {
-        setState(() => _isSaving = false);
-        Fluttertoast.showToast(
-          msg: 'Profile updated successfully!',
-          toastLength: Toast.LENGTH_LONG,
-          gravity: ToastGravity.BOTTOM,
-          backgroundColor: Colors.green,
-          textColor: Colors.white,
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isSaving = false);
-        _showErrorToast('Failed to update profile: ${e.toString()}');
-      }
-    }
-  }
-
-  // Helper method to upload image with timeout
-  Future<String?> _uploadImageWithTimeout(
-    StorageService storageService,
-    XFile file,
-    String uid, {
-    Duration timeout = const Duration(seconds: 30),
-  }) async {
-    try {
-      return await storageService.uploadXFile(file, uid).timeout(timeout);
-    } catch (e) {
-      debugPrint('Image upload error: $e');
-      rethrow;
-    }
-  }
-}
-
-// Loading state widget with customizable message
-class _LoadingProfile extends StatelessWidget {
-  final String message;
-
-  const _LoadingProfile({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Circular loading indicator with custom color
-          const CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            strokeWidth: 3,
-          ),
-          const SizedBox(height: 20),
-          // Loading text
-          Text(
-            message,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
+  // UI Components
+  Widget _buildProfileView(UserProfile user) {
+    return Column(
+      children: [_buildProfileHeader(user), _buildProfileForm(user)],
     );
   }
-}
 
-// Saving overlay that shows the current operation
-class _SavingOverlay extends StatelessWidget {
-  final String message;
-
-  const _SavingOverlay({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black54,
-      child: Center(
-        child: Card(
-          elevation: 8,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6E61FD)),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  message,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// Error state widget
-class _ErrorProfile extends StatelessWidget {
-  final String error;
-  final VoidCallback? onRetry;
-
-  const _ErrorProfile({required this.error, this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Error icon
-            const Icon(Icons.error_outline, color: Colors.white, size: 48),
-            const SizedBox(height: 16),
-            // Error message
-            const Text(
-              'Something went wrong',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Error details
-            Text(
-              error,
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            // Retry button (if available)
-            if (onRetry != null)
-              ElevatedButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF6E61FD),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Modified ProfileHeader to show loading state on avatar
-class _ProfileHeader extends StatelessWidget {
-  final UserProfile? user;
-  final File? selectedImage;
-  final String? selectedImageUrl;
-  final VoidCallback onImagePressed;
-  final bool isImageUploading;
-
-  const _ProfileHeader({
-    required this.user,
-    required this.selectedImage,
-    required this.selectedImageUrl,
-    required this.onImagePressed,
-    required this.isImageUploading,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildProfileHeader(UserProfile user) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40),
       decoration: const BoxDecoration(color: Color(0xFF6E61FD)),
       child: Column(
         children: [
-          _ProfileAvatar(
-            user: user,
-            selectedImage: selectedImage,
-            selectedImageUrl: selectedImageUrl,
-            onPressed: onImagePressed,
-            isLoading: isImageUploading,
-          ),
+          _buildProfileAvatar(user),
           const SizedBox(height: 20),
-          const _LevelIndicator(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF8D84FE),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text(
+              'Level 3 Explorer',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
-}
 
-// Modified ProfileAvatar to show loading state
-class _ProfileAvatar extends StatelessWidget {
-  final UserProfile? user;
-  final File? selectedImage;
-  final String? selectedImageUrl;
-  final VoidCallback onPressed;
-  final bool isLoading;
-
-  const _ProfileAvatar({
-    required this.user,
-    required this.selectedImage,
-    required this.selectedImageUrl,
-    required this.onPressed,
-    required this.isLoading,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildProfileAvatar(UserProfile user) {
     return Stack(
       alignment: Alignment.bottomRight,
       children: [
         GestureDetector(
-          onTap: isLoading ? null : onPressed, // Disable when loading
+          onTap: _isImageUploading ? null : _pickImage,
           child: Container(
             width: 120,
             height: 120,
@@ -538,37 +371,39 @@ class _ProfileAvatar extends StatelessWidget {
               border: Border.all(color: Colors.white, width: 3),
             ),
             child: ClipOval(
-              child: isLoading ? _buildLoadingAvatar() : _getAvatarImage(),
+              child:
+                  _isImageUploading
+                      ? _buildLoadingAvatar()
+                      : _buildAvatarImage(user),
             ),
           ),
         ),
-        if (!isLoading) _EditImageButton(onPressed: onPressed),
+        if (!_isImageUploading)
+          GestureDetector(
+            onTap: _pickImage,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.edit, color: Color(0xFF6E61FD), size: 20),
+            ),
+          ),
       ],
     );
   }
 
-  Widget _buildLoadingAvatar() {
-    return Container(
-      color: Colors.black45,
-      child: const Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-          strokeWidth: 2,
-        ),
-      ),
-    );
-  }
-
-  Widget _getAvatarImage() {
-    if (selectedImage != null) {
-      return Image.file(selectedImage!, fit: BoxFit.cover);
+  Widget _buildAvatarImage(UserProfile user) {
+    if (_selectedImage != null) {
+      return Image.file(_selectedImage!, fit: BoxFit.cover);
     }
-    if (selectedImageUrl != null) {
-      return Image.network(selectedImageUrl!, fit: BoxFit.cover);
+    if (_selectedImageUrl != null) {
+      return Image.network(_selectedImageUrl!, fit: BoxFit.cover);
     }
-    if (user?.photoUrl != null) {
+    if (user.photoUrl != null) {
       return Image.network(
-        user!.photoUrl!,
+        user.photoUrl!,
         fit: BoxFit.cover,
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
@@ -583,33 +418,29 @@ class _ProfileAvatar extends StatelessWidget {
             ),
           );
         },
-        errorBuilder: (_, __, ___) => const _DefaultAvatar(),
+        errorBuilder:
+            (_, __, ___) => Image.asset(
+              'assets/profile/default_profile.png',
+              fit: BoxFit.cover,
+            ),
       );
     }
-    return const _DefaultAvatar();
+    return Image.asset('assets/profile/default_profile.png', fit: BoxFit.cover);
   }
-}
 
-// Modified ProfileForm with disabled save button when saving
-class _ProfileForm extends StatelessWidget {
-  final TextEditingController usernameController;
-  final TextEditingController aboutController;
-  final String? email;
-  final VoidCallback onSave;
-  final VoidCallback onSignOut;
-  final bool isSaving;
+  Widget _buildLoadingAvatar() {
+    return Container(
+      color: Colors.black45,
+      child: const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          strokeWidth: 2,
+        ),
+      ),
+    );
+  }
 
-  const _ProfileForm({
-    required this.usernameController,
-    required this.aboutController,
-    required this.email,
-    required this.onSave,
-    required this.onSignOut,
-    required this.isSaving,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildProfileForm(UserProfile user) {
     return Expanded(
       child: Container(
         width: double.infinity,
@@ -625,58 +456,113 @@ class _ProfileForm extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _EditableField(
-                label: 'Username',
-                controller: usernameController,
-                icon: Icons.person_outline,
-                enabled: !isSaving,
+              _buildEditableField(
+                'Username',
+                _usernameController,
+                Icons.person_outline,
               ),
               const SizedBox(height: 24),
-              _NonEditableField(
-                label: 'Email',
-                value: email ?? 'no-email@example.com',
-                icon: Icons.email_outlined,
-              ),
+              _buildNonEditableField('Email', user.email, Icons.email_outlined),
               const SizedBox(height: 24),
-              _EditableField(
-                label: 'About',
-                controller: aboutController,
-                icon: Icons.info_outline,
+              _buildEditableField(
+                'About',
+                _aboutController,
+                Icons.info_outline,
                 maxLines: 4,
-                enabled: !isSaving,
               ),
               const SizedBox(height: 40),
-              _SaveButton(
-                onPressed: isSaving ? null : onSave,
-                isLoading: isSaving,
-              ),
+              _buildSaveButton(),
               const SizedBox(height: 24),
-              _SignOutButton(
-                onPressed: isSaving ? () {} : onSignOut,
-                enabled: !isSaving,
-              ),
+              _buildSignOutButton(),
             ],
           ),
         ),
       ),
     );
   }
-}
 
-// Modified SaveButton to show loading state
-class _SaveButton extends StatelessWidget {
-  final VoidCallback? onPressed;
-  final bool isLoading;
+  Widget _buildEditableField(
+    String label,
+    TextEditingController controller,
+    IconData icon, {
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF281CA3),
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          maxLines: maxLines,
+          enabled: !_isSaving,
+          decoration: InputDecoration(
+            prefixIcon: Icon(icon, color: const Color(0xFF6E61FD)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFC6C2FF)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFC6C2FF)),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: const Color(0xFFC6C2FF).withOpacity(0.5),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-  const _SaveButton({required this.onPressed, required this.isLoading});
+  Widget _buildNonEditableField(String label, String value, IconData icon) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF281CA3),
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF5F5F5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFC6C2FF)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: const Color(0xFF6E61FD)),
+              const SizedBox(width: 12),
+              Expanded(child: Text(value)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSaveButton() {
     return Center(
       child: SizedBox(
         width: 200,
         child: ElevatedButton(
-          onPressed: onPressed,
+          onPressed: _isSaving ? null : _saveProfile,
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF6E61FD),
             disabledBackgroundColor: const Color(0xFF6E61FD).withOpacity(0.7),
@@ -686,7 +572,7 @@ class _SaveButton extends StatelessWidget {
             ),
           ),
           child:
-              isLoading
+              _isSaving
                   ? const SizedBox(
                     height: 20,
                     width: 20,
@@ -707,27 +593,18 @@ class _SaveButton extends StatelessWidget {
       ),
     );
   }
-}
 
-// Modified SignOutButton to handle disabled state
-class _SignOutButton extends StatelessWidget {
-  final VoidCallback onPressed;
-  final bool enabled;
-
-  const _SignOutButton({required this.onPressed, required this.enabled});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSignOutButton() {
     return Center(
       child: SizedBox(
         width: 200,
         child: OutlinedButton(
-          onPressed: enabled ? onPressed : null,
+          onPressed: _isSaving ? null : _signOut,
           style: OutlinedButton.styleFrom(
             foregroundColor: Colors.red,
             disabledForegroundColor: Colors.red.withOpacity(0.5),
             side: BorderSide(
-              color: enabled ? Colors.red : Colors.red.withOpacity(0.5),
+              color: _isSaving ? Colors.red.withOpacity(0.5) : Colors.red,
               width: 1.5,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
@@ -750,214 +627,107 @@ class _SignOutButton extends StatelessWidget {
       ),
     );
   }
-}
 
-// Modified EditableField to handle disabled state
-class _EditableField extends StatelessWidget {
-  final String label;
-  final TextEditingController controller;
-  final IconData icon;
-  final int? maxLines;
-  final bool enabled;
-
-  const _EditableField({
-    required this.label,
-    required this.controller,
-    required this.icon,
-    this.maxLines = 1,
-    this.enabled = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF281CA3),
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          maxLines: maxLines,
-          enabled: enabled,
-          decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: const Color(0xFF6E61FD)),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFC6C2FF)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFC6C2FF)),
-            ),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: const Color(0xFFC6C2FF).withOpacity(0.5),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// Keep other widgets as-is
-class _EditImageButton extends StatelessWidget {
-  final VoidCallback onPressed;
-
-  const _EditImageButton({required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.edit, color: Color(0xFF6E61FD), size: 20),
-      ),
-    );
-  }
-}
-
-class _LevelIndicator extends StatelessWidget {
-  const _LevelIndicator();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF8D84FE),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: const Text(
-        'Level 3 Explorer',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
-class _NonEditableField extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _NonEditableField({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF281CA3),
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF5F5F5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFC6C2FF)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: const Color(0xFF6E61FD)),
-              const SizedBox(width: 12),
-              Text(value),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DefaultAvatar extends StatelessWidget {
-  const _DefaultAvatar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Image.asset('assets/profile/default_profile.png', fit: BoxFit.cover);
-  }
-}
-
-class _ImageSourceBottomSheet extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+  Widget _buildLoadingView(String message) {
+    return Center(
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text(
-            'Choose image source',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          const CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            strokeWidth: 3,
           ),
-          const SizedBox(height: 10),
-          ListTile(
-            leading: const Icon(Icons.camera_alt, color: Color(0xFF6E61FD)),
-            title: const Text('Take a photo'),
-            onTap: () => Navigator.pop(context, ImageSource.camera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library, color: Color(0xFF6E61FD)),
-            title: const Text('Choose from gallery'),
-            onTap: () => Navigator.pop(context, ImageSource.gallery),
+          const SizedBox(height: 20),
+          Text(
+            message,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ],
       ),
     );
   }
-}
 
-class _ProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final VoidCallback onBack;
-
-  const _ProfileAppBar({required this.onBack});
-
-  @override
-  Widget build(BuildContext context) {
-    return AppBar(
-      backgroundColor: const Color(0xFF6E61FD),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: onBack,
-      ),
-      title: const Text(
-        'Profile',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
+  Widget _buildErrorView(String error, VoidCallback? onRetry) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white, size: 48),
+            const SizedBox(height: 16),
+            const Text(
+              'Something went wrong',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error,
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            if (onRetry != null)
+              ElevatedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF6E61FD),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Widget _buildSavingOverlay() {
+    return Container(
+      color: Colors.black54,
+      child: Center(
+        child: Card(
+          elevation: 8,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6E61FD)),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  _loadingMessage,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

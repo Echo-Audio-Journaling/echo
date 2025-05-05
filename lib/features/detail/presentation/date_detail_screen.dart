@@ -1,125 +1,202 @@
+import 'package:echo/app/router.dart';
+import 'package:echo/features/detail/provider/log_entries_provider.dart';
+import 'package:echo/features/detail/widgets/audio_log_item.dart';
+import 'package:echo/features/detail/widgets/image_log_item.dart';
+import 'package:echo/features/detail/widgets/video_log_item.dart';
+import 'package:echo/shared/models/log_entry.dart';
+import 'package:echo/shared/widgets/create_content_action_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
-class DateDetailScreen extends StatelessWidget {
+class DateDetailPage extends ConsumerStatefulWidget {
   final DateTime date;
 
-  const DateDetailScreen({super.key, required this.date});
+  const DateDetailPage({super.key, required this.date});
+
+  @override
+  ConsumerState<DateDetailPage> createState() => _DateDetailPageState();
+}
+
+class _DateDetailPageState extends ConsumerState<DateDetailPage> {
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    // Fetch log entries for the selected date
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(logEntriesProvider.notifier).fetchLogEntriesForDate(widget.date);
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final logEntriesState = ref.watch(logEntriesProvider);
+    final isRecording = ref.watch(isRecordingProvider);
+
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text("${date.day}/${date.month}/${date.year}"),
-        backgroundColor: Theme.of(context).primaryColor,
+        backgroundColor: const Color(0xFF6E61FD),
+        elevation: 0,
+        title: Text(
+          DateFormat('MMMM d, yyyy').format(widget.date),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => ref.read(routerProvider).go('/'),
+        ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      body: SafeArea(
         child: Column(
           children: [
-          
-            _TextNoteCard(
-              title: "Ideas on quantum",
-              dateText: "Friday 25, Jan, 2025 7:00 AM",
-              content:
-                  "if quantum particles are tiny and can’t be perceived to us with our naked eye, what’s the word for big …….",
+            // Main content area
+            Expanded(
+              child: logEntriesState.when(
+                data: (logEntries) {
+                  if (logEntries.isEmpty && !isRecording) {
+                    return _buildEmptyState();
+                  }
+                  return _buildLogEntryList(logEntries);
+                },
+                loading: () => _buildLoadingState(),
+                error: (error, _) => _buildErrorState(error.toString()),
+              ),
             ),
 
-            const SizedBox(height: 16),
-
-            _ImageNoteCard(
-              imageUrl:
-                  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e", 
-              dateText: "Friday 25, Jan, 2025 9:00 AM",
-              description:
-                  "Did a hike with Thomas and shot this sunset picture :)",
-            ),
+            // Action bar for creating content
+            CreateContentActionBar(selectedDate: widget.date),
           ],
         ),
       ),
     );
   }
-}
 
-class _TextNoteCard extends StatelessWidget {
-  final String title;
-  final String dateText;
-  final String content;
-
-  const _TextNoteCard({
-    required this.title,
-    required this.dateText,
-    required this.content,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title,
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(dateText,
-                style: const TextStyle(fontSize: 13, color: Colors.grey)),
-            const SizedBox(height: 12),
-            Text(content,
-                style: const TextStyle(fontSize: 14, color: Colors.black54)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ImageNoteCard extends StatelessWidget {
-  final String imageUrl;
-  final String dateText;
-  final String description;
-
-  const _ImageNoteCard({
-    required this.imageUrl,
-    required this.dateText,
-    required this.description,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      clipBehavior: Clip.antiAlias,
+  Widget _buildEmptyState() {
+    return Center(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.network(
-            imageUrl,
-            width: double.infinity,
-            height: 200,
-            fit: BoxFit.cover,
-          ),
-
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(dateText,
-                    style: const TextStyle(fontSize: 13, color: Colors.grey)),
-                const SizedBox(height: 8),
-                Text(description,
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600)),
-              ],
+          Icon(Icons.history_edu_outlined, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'No entries for this day',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[700],
             ),
           ),
+          const SizedBox(height: 8),
+          Text(
+            'Use the buttons below to add audio, images, or videos',
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          Icon(Icons.arrow_downward, size: 32, color: Colors.grey[400]),
         ],
       ),
     );
+  }
+
+  Widget _buildLoadingState() {
+    return const Center(
+      child: CircularProgressIndicator(
+        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6E61FD)),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String errorMessage) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.red, size: 48),
+            const SizedBox(height: 16),
+            const Text(
+              'Something went wrong',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              errorMessage,
+              style: const TextStyle(color: Colors.red),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                ref.refresh(logEntriesProvider);
+                ref
+                    .read(logEntriesProvider.notifier)
+                    .fetchLogEntriesForDate(widget.date);
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try Again'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6E61FD),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogEntryList(List<LogEntry> logEntries) {
+    // Sort entries by timestamp, newest first
+    logEntries.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: ListView.builder(
+        controller: _scrollController,
+        itemCount: logEntries.length,
+        padding: const EdgeInsets.only(top: 16, bottom: 24),
+        itemBuilder: (context, index) {
+          final entry = logEntries[index];
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _buildLogEntryItem(entry),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLogEntryItem(LogEntry entry) {
+    switch (entry.type) {
+      case LogEntryType.audio:
+        return AudioLogItem(entry: entry as AudioLogEntry);
+      case LogEntryType.image:
+        return ImageLogItem(entry: entry as ImageLogEntry);
+      case LogEntryType.video:
+        return VideoLogItem(entry: entry as VideoLogEntry);
+    }
   }
 }
