@@ -2,6 +2,7 @@ import 'package:echo/app/router.dart';
 import 'package:echo/features/auth/provider/auth_provider.dart';
 import 'package:echo/features/auth/provider/profile_provider.dart';
 import 'package:echo/shared/models/user_profile.dart';
+import 'package:echo/shared/utils/storage_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late final TextEditingController _aboutController;
   File? _selectedImage;
   String? _selectedImageUrl;
+  bool _isSaving = false; // Track overall saving state
+  bool _isImageUploading = false; // Track specific image upload state
+  String _loadingMessage = 'Loading...'; // Dynamic loading message
 
   @override
   void initState() {
@@ -81,19 +85,57 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _pickImage() async {
+    // Don't allow picking a new image while one is being uploaded
+    if (_isImageUploading) return;
+
     final source = await _showImageSourceSelector();
     if (source == null) return;
 
-    final image = await ImagePicker().pickImage(source: source);
-    if (image == null) return;
+    try {
+      setState(() => _isImageUploading = true);
 
-    if (!mounted) return;
+      final image = await ImagePicker().pickImage(
+        source: source,
+        // Optimize by compressing the image before upload
+        maxHeight: 1200,
+        maxWidth: 1200,
+        imageQuality: 85,
+      );
 
-    if (kIsWeb) {
-      setState(() => _selectedImageUrl = image.path);
-    } else {
-      setState(() => _selectedImage = File(image.path));
+      if (image == null) {
+        setState(() => _isImageUploading = false);
+        return;
+      }
+
+      if (!mounted) return;
+
+      if (kIsWeb) {
+        setState(() {
+          _selectedImageUrl = image.path;
+          _isImageUploading = false;
+        });
+      } else {
+        setState(() {
+          _selectedImage = File(image.path);
+          _isImageUploading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isImageUploading = false);
+        _showErrorToast('Failed to select image: ${e.toString()}');
+      }
     }
+  }
+
+  void _showErrorToast(String message) {
+    Fluttertoast.showToast(
+      msg: message,
+      toastLength: Toast.LENGTH_LONG,
+      gravity: ToastGravity.BOTTOM,
+      backgroundColor: Colors.red,
+      textColor: Colors.white,
+    );
   }
 
   Future<ImageSource?> _showImageSourceSelector() async {
@@ -105,7 +147,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(userProfileProvider).value;
+    // Watch the userProfileProvider to react to its state changes
+    final userProfileState = ref.watch(userProfileProvider);
+
+    // Listen for changes to update controllers when data is loaded
     ref.listen<AsyncValue<UserProfile?>>(userProfileProvider, (_, next) {
       next.when(
         data: (user) {
@@ -118,110 +163,325 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         loading: () => debugPrint('Loading user profile...'),
       );
     });
+
+    // Return a Scaffold with either loading indicator or profile content
     return Scaffold(
       backgroundColor: const Color(0xFF6E61FD),
       appBar: _ProfileAppBar(onBack: () => ref.read(routerProvider).go('/')),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _ProfileHeader(
-              user: user,
-              selectedImage: _selectedImage,
-              selectedImageUrl: _selectedImageUrl,
-              onImagePressed: _pickImage,
+      // Show saving overlay if saving
+      body: Stack(
+        children: [
+          SafeArea(
+            child: userProfileState.when(
+              // Show loading indicator while data is loading
+              loading:
+                  () => const _LoadingProfile(message: 'Loading profile...'),
+
+              // Show error state if there's an error
+              error:
+                  (error, stackTrace) => _ErrorProfile(
+                    error: error.toString(),
+                    onRetry: () => ref.refresh(userProfileProvider),
+                  ),
+
+              // Show profile content when data is loaded
+              data: (user) {
+                if (user == null) {
+                  // Handle case where user is null (not logged in or data not found)
+                  return const _ErrorProfile(
+                    error: 'User profile not found',
+                    onRetry: null,
+                  );
+                }
+
+                return Column(
+                  children: [
+                    _ProfileHeader(
+                      user: user,
+                      selectedImage: _selectedImage,
+                      selectedImageUrl: _selectedImageUrl,
+                      onImagePressed: _pickImage,
+                      isImageUploading: _isImageUploading,
+                    ),
+                    _ProfileForm(
+                      usernameController: _usernameController,
+                      aboutController: _aboutController,
+                      email: user.email,
+                      onSave: () => _saveProfile(),
+                      onSignOut: _handleSignOut,
+                      isSaving: _isSaving,
+                    ),
+                  ],
+                );
+              },
             ),
-            _ProfileForm(
-              usernameController: _usernameController,
-              aboutController: _aboutController,
-              email: user?.email,
-              onSave: () => _saveProfile(),
-              onSignOut: _handleSignOut,
-            ),
-          ],
-        ),
+          ),
+          // Show saving overlay if necessary
+          if (_isSaving) _SavingOverlay(message: _loadingMessage),
+        ],
       ),
     );
   }
 
   Future<void> _saveProfile() async {
+    if (_isSaving) return; // Prevent multiple save operations
+
+    setState(() {
+      _isSaving = true;
+      _loadingMessage = 'Saving profile...';
+    });
+
     final profile = ref.read(userProfileProvider).value;
     if (profile == null) {
-      Fluttertoast.showToast(
-        msg: 'Error: User profile not found.',
-        toastLength: Toast.LENGTH_LONG,
-        gravity: ToastGravity.SNACKBAR,
-        timeInSecForIosWeb: 1,
-        backgroundColor: Colors.red,
-        textColor: Colors.white,
-        fontSize: 16.0,
-      );
+      setState(() => _isSaving = false);
+      _showErrorToast('Error: User profile not found.');
       return;
     }
 
-    final updatedProfile = UserProfile(
-      uid: profile.uid,
-      email: profile.email,
-      username: _usernameController.text,
-      about: _aboutController.text,
-      photoUrl: _selectedImageUrl ?? profile.photoUrl,
-      level: profile.level,
-      isNewUser: false,
-    );
+    try {
+      // Upload image if there is one
+      String? imageUrl;
+      final StorageService storageService = StorageService();
+      setState(() => _loadingMessage = 'Updating profile data...');
 
-    await ref.read(userProfileProvider.notifier).updateProfile(updatedProfile);
-    Fluttertoast.showToast(
-      msg: 'Profile updated successfully!',
-      toastLength: Toast.LENGTH_LONG,
-      gravity: ToastGravity.SNACKBAR,
-      timeInSecForIosWeb: 1,
-      backgroundColor: Colors.green,
-      textColor: Colors.white,
-      fontSize: 16.0,
+      if (_selectedImage != null || _selectedImageUrl != null) {
+        // setState(() => _loadingMessage = 'Processing image...');
+
+        // First delete the old image if it exists
+        if (profile.photoUrl != null) {
+          // setState(() => _loadingMessage = 'Removing old image...');
+          try {
+            final oldImagePath = await storageService.getReferencePathFromUrl(
+              profile.photoUrl!,
+            );
+            if (oldImagePath != null) {
+              await storageService.deleteFile(oldImagePath);
+            }
+          } catch (e) {
+            // If error deleting old image, continue with upload anyway
+            debugPrint('Error deleting old image: $e');
+          }
+        }
+
+        // Upload the new image with optimized approach
+        // setState(() => _loadingMessage = 'Uploading new image...');
+        if (_selectedImage != null) {
+          // Optimize by uploading in a try-catch block with timeout
+          try {
+            imageUrl = await _uploadImageWithTimeout(
+              storageService,
+              XFile(_selectedImage!.path),
+              profile.uid,
+            );
+          } catch (e) {
+            _showErrorToast('Image upload timed out. Try again later.');
+            setState(() => _isSaving = false);
+            return;
+          }
+        } else if (_selectedImageUrl != null) {
+          // Handle web platforms
+          imageUrl = _selectedImageUrl;
+        }
+      }
+
+      // Update profile in Firestore
+      final updatedProfile = UserProfile(
+        uid: profile.uid,
+        email: profile.email,
+        username: _usernameController.text,
+        about: _aboutController.text,
+        photoUrl: imageUrl ?? profile.photoUrl,
+        level: profile.level,
+        isNewUser: false,
+      );
+
+      await ref
+          .read(userProfileProvider.notifier)
+          .updateProfile(updatedProfile);
+
+      // Success state
+      if (mounted) {
+        setState(() => _isSaving = false);
+        Fluttertoast.showToast(
+          msg: 'Profile updated successfully!',
+          toastLength: Toast.LENGTH_LONG,
+          gravity: ToastGravity.BOTTOM,
+          backgroundColor: Colors.green,
+          textColor: Colors.white,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _showErrorToast('Failed to update profile: ${e.toString()}');
+      }
+    }
+  }
+
+  // Helper method to upload image with timeout
+  Future<String?> _uploadImageWithTimeout(
+    StorageService storageService,
+    XFile file,
+    String uid, {
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
+    try {
+      return await storageService.uploadXFile(file, uid).timeout(timeout);
+    } catch (e) {
+      debugPrint('Image upload error: $e');
+      rethrow;
+    }
+  }
+}
+
+// Loading state widget with customizable message
+class _LoadingProfile extends StatelessWidget {
+  final String message;
+
+  const _LoadingProfile({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Circular loading indicator with custom color
+          const CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            strokeWidth: 3,
+          ),
+          const SizedBox(height: 20),
+          // Loading text
+          Text(
+            message,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-// Extracted Widgets for Better Organization
+// Saving overlay that shows the current operation
+class _SavingOverlay extends StatelessWidget {
+  final String message;
 
-class _ProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final VoidCallback onBack;
-
-  const _ProfileAppBar({required this.onBack});
+  const _SavingOverlay({required this.message});
 
   @override
   Widget build(BuildContext context) {
-    return AppBar(
-      backgroundColor: const Color(0xFF6E61FD),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: onBack,
-      ),
-      title: const Text(
-        'Profile',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
+    return Container(
+      color: Colors.black54,
+      child: Center(
+        child: Card(
+          elevation: 8,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6E61FD)),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
-
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
 
+// Error state widget
+class _ErrorProfile extends StatelessWidget {
+  final String error;
+  final VoidCallback? onRetry;
+
+  const _ErrorProfile({required this.error, this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Error icon
+            const Icon(Icons.error_outline, color: Colors.white, size: 48),
+            const SizedBox(height: 16),
+            // Error message
+            const Text(
+              'Something went wrong',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Error details
+            Text(
+              error,
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            // Retry button (if available)
+            if (onRetry != null)
+              ElevatedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF6E61FD),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Modified ProfileHeader to show loading state on avatar
 class _ProfileHeader extends StatelessWidget {
   final UserProfile? user;
   final File? selectedImage;
   final String? selectedImageUrl;
   final VoidCallback onImagePressed;
+  final bool isImageUploading;
 
   const _ProfileHeader({
     required this.user,
     required this.selectedImage,
     required this.selectedImageUrl,
     required this.onImagePressed,
+    required this.isImageUploading,
   });
 
   @override
@@ -237,6 +497,7 @@ class _ProfileHeader extends StatelessWidget {
             selectedImage: selectedImage,
             selectedImageUrl: selectedImageUrl,
             onPressed: onImagePressed,
+            isLoading: isImageUploading,
           ),
           const SizedBox(height: 20),
           const _LevelIndicator(),
@@ -246,17 +507,20 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
+// Modified ProfileAvatar to show loading state
 class _ProfileAvatar extends StatelessWidget {
   final UserProfile? user;
   final File? selectedImage;
   final String? selectedImageUrl;
   final VoidCallback onPressed;
+  final bool isLoading;
 
   const _ProfileAvatar({
     required this.user,
     required this.selectedImage,
     required this.selectedImageUrl,
     required this.onPressed,
+    required this.isLoading,
   });
 
   @override
@@ -265,7 +529,7 @@ class _ProfileAvatar extends StatelessWidget {
       alignment: Alignment.bottomRight,
       children: [
         GestureDetector(
-          onTap: onPressed,
+          onTap: isLoading ? null : onPressed, // Disable when loading
           child: Container(
             width: 120,
             height: 120,
@@ -273,11 +537,25 @@ class _ProfileAvatar extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 3),
             ),
-            child: ClipOval(child: _getAvatarImage()),
+            child: ClipOval(
+              child: isLoading ? _buildLoadingAvatar() : _getAvatarImage(),
+            ),
           ),
         ),
-        _EditImageButton(onPressed: onPressed),
+        if (!isLoading) _EditImageButton(onPressed: onPressed),
       ],
+    );
+  }
+
+  Widget _buildLoadingAvatar() {
+    return Container(
+      color: Colors.black45,
+      child: const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          strokeWidth: 2,
+        ),
+      ),
     );
   }
 
@@ -292,6 +570,19 @@ class _ProfileAvatar extends StatelessWidget {
       return Image.network(
         user!.photoUrl!,
         fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value:
+                  loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded /
+                          loadingProgress.expectedTotalBytes!
+                      : null,
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          );
+        },
         errorBuilder: (_, __, ___) => const _DefaultAvatar(),
       );
     }
@@ -299,6 +590,226 @@ class _ProfileAvatar extends StatelessWidget {
   }
 }
 
+// Modified ProfileForm with disabled save button when saving
+class _ProfileForm extends StatelessWidget {
+  final TextEditingController usernameController;
+  final TextEditingController aboutController;
+  final String? email;
+  final VoidCallback onSave;
+  final VoidCallback onSignOut;
+  final bool isSaving;
+
+  const _ProfileForm({
+    required this.usernameController,
+    required this.aboutController,
+    required this.email,
+    required this.onSave,
+    required this.onSignOut,
+    required this.isSaving,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(30),
+            topRight: Radius.circular(30),
+          ),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _EditableField(
+                label: 'Username',
+                controller: usernameController,
+                icon: Icons.person_outline,
+                enabled: !isSaving,
+              ),
+              const SizedBox(height: 24),
+              _NonEditableField(
+                label: 'Email',
+                value: email ?? 'no-email@example.com',
+                icon: Icons.email_outlined,
+              ),
+              const SizedBox(height: 24),
+              _EditableField(
+                label: 'About',
+                controller: aboutController,
+                icon: Icons.info_outline,
+                maxLines: 4,
+                enabled: !isSaving,
+              ),
+              const SizedBox(height: 40),
+              _SaveButton(
+                onPressed: isSaving ? null : onSave,
+                isLoading: isSaving,
+              ),
+              const SizedBox(height: 24),
+              _SignOutButton(
+                onPressed: isSaving ? () {} : onSignOut,
+                enabled: !isSaving,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Modified SaveButton to show loading state
+class _SaveButton extends StatelessWidget {
+  final VoidCallback? onPressed;
+  final bool isLoading;
+
+  const _SaveButton({required this.onPressed, required this.isLoading});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox(
+        width: 200,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF6E61FD),
+            disabledBackgroundColor: const Color(0xFF6E61FD).withOpacity(0.7),
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child:
+              isLoading
+                  ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      strokeWidth: 2,
+                    ),
+                  )
+                  : const Text(
+                    'Save Changes',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+        ),
+      ),
+    );
+  }
+}
+
+// Modified SignOutButton to handle disabled state
+class _SignOutButton extends StatelessWidget {
+  final VoidCallback onPressed;
+  final bool enabled;
+
+  const _SignOutButton({required this.onPressed, required this.enabled});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: SizedBox(
+        width: 200,
+        child: OutlinedButton(
+          onPressed: enabled ? onPressed : null,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.red,
+            disabledForegroundColor: Colors.red.withOpacity(0.5),
+            side: BorderSide(
+              color: enabled ? Colors.red : Colors.red.withOpacity(0.5),
+              width: 1.5,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.logout, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Sign Out',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Modified EditableField to handle disabled state
+class _EditableField extends StatelessWidget {
+  final String label;
+  final TextEditingController controller;
+  final IconData icon;
+  final int? maxLines;
+  final bool enabled;
+
+  const _EditableField({
+    required this.label,
+    required this.controller,
+    required this.icon,
+    this.maxLines = 1,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: Color(0xFF281CA3),
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          maxLines: maxLines,
+          enabled: enabled,
+          decoration: InputDecoration(
+            prefixIcon: Icon(icon, color: const Color(0xFF6E61FD)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFC6C2FF)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFC6C2FF)),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: const Color(0xFFC6C2FF).withOpacity(0.5),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Keep other widgets as-is
 class _EditImageButton extends StatelessWidget {
   final VoidCallback onPressed;
 
@@ -339,217 +850,6 @@ class _LevelIndicator extends StatelessWidget {
   }
 }
 
-class _ProfileForm extends StatelessWidget {
-  final TextEditingController usernameController;
-  final TextEditingController aboutController;
-  final String? email;
-  final VoidCallback onSave;
-  final VoidCallback onSignOut;
-
-  const _ProfileForm({
-    required this.usernameController,
-    required this.aboutController,
-    required this.email,
-    required this.onSave,
-    required this.onSignOut,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(30),
-            topRight: Radius.circular(30),
-          ),
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _EditableField(
-                label: 'Username',
-                controller: usernameController,
-                icon: Icons.person_outline,
-              ),
-              const SizedBox(height: 24),
-              _NonEditableField(
-                label: 'Email',
-                value: email ?? 'no-email@example.com',
-                icon: Icons.email_outlined,
-              ),
-              const SizedBox(height: 24),
-              _EditableField(
-                label: 'About',
-                controller: aboutController,
-                icon: Icons.info_outline,
-                maxLines: 4,
-              ),
-              const SizedBox(height: 40),
-              _SaveButton(onPressed: onSave),
-              const SizedBox(height: 24),
-              _SignOutButton(onPressed: onSignOut),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SaveButton extends StatelessWidget {
-  final VoidCallback onPressed;
-
-  const _SaveButton({required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: 200,
-        child: ElevatedButton(
-          onPressed: onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF6E61FD),
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          child: const Text(
-            'Save Changes',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SignOutButton extends StatelessWidget {
-  final VoidCallback onPressed;
-
-  const _SignOutButton({required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: 200,
-        child: OutlinedButton(
-          onPressed: onPressed,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.red,
-            side: const BorderSide(color: Colors.red, width: 1.5),
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.logout, size: 20),
-              SizedBox(width: 8),
-              Text(
-                'Sign Out',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ImageSourceBottomSheet extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Choose image source',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
-          ListTile(
-            leading: const Icon(Icons.camera_alt, color: Color(0xFF6E61FD)),
-            title: const Text('Take a photo'),
-            onTap: () => Navigator.pop(context, ImageSource.camera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library, color: Color(0xFF6E61FD)),
-            title: const Text('Choose from gallery'),
-            onTap: () => Navigator.pop(context, ImageSource.gallery),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Keep your existing _EditableField, _NonEditableField, and _DefaultAvatar classes
-// Reusable Editable Field Component
-class _EditableField extends StatelessWidget {
-  final String label;
-  final TextEditingController controller;
-  final IconData icon;
-  final int? maxLines;
-
-  const _EditableField({
-    required this.label,
-    required this.controller,
-    required this.icon,
-    this.maxLines = 1,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF281CA3),
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          maxLines: maxLines,
-          decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: const Color(0xFF6E61FD)),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFC6C2FF)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFC6C2FF)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// Reusable Non-Editable Field Component
 class _NonEditableField extends StatelessWidget {
   final String label;
   final String value;
@@ -603,4 +903,61 @@ class _DefaultAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Image.asset('assets/profile/default_profile.png', fit: BoxFit.cover);
   }
+}
+
+class _ImageSourceBottomSheet extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Choose image source',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          ListTile(
+            leading: const Icon(Icons.camera_alt, color: Color(0xFF6E61FD)),
+            title: const Text('Take a photo'),
+            onTap: () => Navigator.pop(context, ImageSource.camera),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library, color: Color(0xFF6E61FD)),
+            title: const Text('Choose from gallery'),
+            onTap: () => Navigator.pop(context, ImageSource.gallery),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final VoidCallback onBack;
+
+  const _ProfileAppBar({required this.onBack});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      backgroundColor: const Color(0xFF6E61FD),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: onBack,
+      ),
+      title: const Text(
+        'Profile',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }
