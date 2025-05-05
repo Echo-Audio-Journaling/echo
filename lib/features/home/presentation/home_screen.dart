@@ -1,11 +1,10 @@
-import 'dart:collection';
-import 'dart:developer';
 import 'package:echo/app/router.dart';
-import 'package:echo/shared/widgets/app_drawer.dart';
-import 'package:echo/shared/widgets/calendar.dart';
-import 'package:echo/shared/widgets/recent_entry.dart';
+import 'package:echo/features/home/widgets/journal_calendar.dart';
+import 'package:echo/features/home/widgets/random_prompts.dart';
+import 'package:echo/features/home/widgets/recent_entries_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -15,118 +14,135 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  LinkedHashMap<DateTime, List<Event>> sampleEvents = LinkedHashMap.from({
-    DateTime(2025, 4, 2): [Event("A")],
-    DateTime(2025, 4, 3): [Event("A"), Event("B")],
-    DateTime(2025, 4, 11): [Event("A"), Event("B"), Event("C")],
-    DateTime(2025, 4, 16): [Event("X")],
-  });
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      drawer: AppDrawer(),
-      body: Stack(
-        children: [
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              color: Theme.of(context).primaryColor,
+    final theme = Theme.of(context);
+    final currentDate = DateFormat('EEEE, d MMM').format(DateTime.now());
+
+    return SafeArea(
+      child: Scaffold(
+        backgroundColor: const Color(0xFF6E61FD),
+        body: Column(
+          children: [
+            // First Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Builder(
-                      builder:
-                          (context) => IconButton(
-                            icon: Image.asset('assets/icons/hamburger.png'),
-                            onPressed: () {
-                              Scaffold.of(context).openDrawer();
-                            },
-                          ),
-                    ),
-                    title: Text(
-                      "Echo",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    trailing: GestureDetector(
-                      onTap: () => ref.read(routerProvider).go('/profile'),
-                      child: Container(
-                        margin: const EdgeInsets.only(top: 3),
-                        child: Icon(
+                  // App Logo and Title
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.waves_rounded, size: 32, color: Colors.white),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Echo',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
                           color: Colors.white,
-                          Icons.person_rounded,
-                          size: 30,
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    margin: const EdgeInsets.symmetric(vertical: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: const TextField(
+                  const SizedBox(height: 16),
+
+                  // Search Bar
+                  SizedBox(
+                    height: 50,
+
+                    child: TextField(
                       decoration: InputDecoration(
-                        hintText: 'Search',
-                        border: InputBorder.none,
-                        icon: Icon(Icons.search, color: Colors.grey),
+                        hintText: 'Search memories...',
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: const Color(0xFF6E61FD),
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            Icons.tune_rounded,
+                            color: const Color(0xFF6E61FD),
+                          ),
+                          onPressed: () {},
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
                       ),
                     ),
                   ),
+                  const SizedBox(height: 16),
+
+                  // Greeting and Profile
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             Text(
-                              "Friday, 25 2025",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              "Good Day!",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              "Aye Chan Aung",
-                              style: TextStyle(
+                              currentDate,
+                              style: theme.textTheme.bodyMedium?.copyWith(
                                 color: Colors.white,
                                 fontSize: 16,
-                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            SizedBox(height: 60),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Good Day!',
+                              style: theme.textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Aye Chan Aung',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      const CircleAvatar(
-                        radius: 45,
-                        backgroundColor: Colors.white,
-                        child: Icon(
-                          Icons.person_4,
-                          color: Color(0xFF6E61FD),
-                          size: 25,
+                      Flexible(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.max,
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.red,
+                                  width: 1.5,
+                                ),
+                                color: Colors.red,
+                              ),
+                              child: Center(
+                                child: GestureDetector(
+                                  onTap:
+                                      () => ref
+                                          .read(routerProvider)
+                                          .go('/profile'),
+                                  child: ClipOval(
+                                    child: Image.asset(
+                                      'assets/profile/default_profile.png',
+                                      height: 80,
+                                      width: 80,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -134,105 +150,49 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ],
               ),
             ),
-          ),
-          Positioned(
-            top: 250,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
+
+            // Second Section
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(32),
                 ),
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const Text(
-                      "Calendar",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surface,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 16,
+                        offset: const Offset(0, -4),
+                      ),
+                    ],
+                  ),
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          RandomPrompts(),
+                          SizedBox(height: 24),
+                          JournalCalendar(),
+                          SizedBox(height: 24),
+                          RecentEntriesSection(
+                            title: 'Recent Entries',
+                            accentColor: const Color(0xFF6E61FD),
+                          ),
+                        ],
                       ),
                     ),
-                    CustomCalendar(events: sampleEvents),
-                    const SizedBox(height: 10),
-                    const Text(
-                      "Recent Entries",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    RecentEntryCard(
-                      title: "Idea on String Theory",
-                      date: "24 Thur, Apr 2025",
-                      time: "12 : 24 PM",
-                    ),
-                    RecentEntryCard(
-                      title: "Note on Relativity",
-                      date: "21 Mon, Apr 2025",
-                      time: "11 : 04 AM",
-                    ),
-                    const SizedBox(height: 100),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-          Positioned(
-            bottom: 20,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _bottomIconButton(Icons.image_outlined, () {
-                  log("Left button tapped");
-                }),
-                _bottomIconButton(Icons.mic, () {
-                  log("Center button tapped");
-                }, isCenter: true),
-                _bottomIconButton(Icons.upload_file, () {
-                  log("Right button tapped");
-                }),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
-}
-
-Widget _bottomIconButton(
-  IconData icon,
-  VoidCallback onTap, {
-  bool isCenter = false,
-}) {
-  return InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(100),
-    child: Container(
-      width: isCenter ? 80 : 60,
-      height: isCenter ? 80 : 60,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade300, width: 2),
-      ),
-      child: Icon(
-        icon,
-        color: const Color(0xFF6E61FD),
-        size: isCenter ? 32 : 26,
-      ),
-    ),
-  );
 }

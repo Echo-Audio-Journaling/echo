@@ -34,7 +34,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<GoogleSignInAccount?>> {
       if (e.toString() == "popup_closed") {
         state = const AsyncValue.data(null);
       } else {
-        state = AsyncValue.error(e, StackTrace.current);
+        state = AsyncValue.error(e, StackTrace.empty);
       }
     }
   }
@@ -45,7 +45,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<GoogleSignInAccount?>> {
       await _googleSignIn.signOut();
       state = const AsyncValue.data(null);
     } catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
+      state = AsyncValue.error(e, StackTrace.empty);
     }
   }
 }

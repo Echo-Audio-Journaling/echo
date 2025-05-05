@@ -48,7 +48,7 @@ class UserProfileNotifier extends StateNotifier<AsyncValue<UserProfile?>> {
         state = AsyncValue.data(newUserProfile);
       }
     } catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
+      state = AsyncValue.error(e, StackTrace.empty);
     }
   }
 
@@ -61,7 +61,7 @@ class UserProfileNotifier extends StateNotifier<AsyncValue<UserProfile?>> {
           .update(updatedProfile.toFirestore());
       state = AsyncValue.data(updatedProfile);
     } catch (e) {
-      state = AsyncValue.error(e, StackTrace.current);
+      state = AsyncValue.error(e, StackTrace.empty);
     }
   }
 }

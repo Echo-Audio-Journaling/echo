@@ -2,10 +2,10 @@ import 'package:echo/app/router.dart';
 import 'package:echo/features/auth/provider/auth_provider.dart';
 import 'package:echo/features/auth/provider/profile_provider.dart';
 import 'package:echo/shared/models/user_profile.dart';
+import 'package:echo/shared/utils/storage_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -17,27 +17,41 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  // Controllers
   late final TextEditingController _usernameController;
   late final TextEditingController _aboutController;
+
+  // Image state
   File? _selectedImage;
   String? _selectedImageUrl;
+
+  // Loading states
+  bool _isSaving = false;
+  bool _isImageUploading = false;
+  String _loadingMessage = 'Loading...';
 
   @override
   void initState() {
     super.initState();
-    _usernameController = TextEditingController();
-    _aboutController = TextEditingController();
-    _initializeControllers();
+    _initControllers();
   }
 
-  void _initializeControllers() {
-    final user = ref.read(userProfileProvider).value;
+  void _initControllers() {
+    _usernameController = TextEditingController();
+    _aboutController = TextEditingController();
+
+    // Initialize with user data after frame is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (user != null) {
-        _usernameController.text = user.username;
-        _aboutController.text = user.about ?? 'About yourself...';
-      }
+      _populateUserData();
     });
+  }
+
+  void _populateUserData() {
+    final user = ref.read(userProfileProvider).value;
+    if (user != null) {
+      _usernameController.text = user.username;
+      _aboutController.text = user.about ?? 'About yourself...';
+    }
   }
 
   @override
@@ -47,19 +61,178 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _handleSignOut() async {
-    final shouldSignOut = await _showSignOutConfirmation();
-    if (shouldSignOut == true) {
-      await ref.read(authStateProvider.notifier).signOut();
-      ref.read(routerProvider).go('/signin');
+  // Image selection
+  Future<void> _pickImage() async {
+    if (_isImageUploading) return;
+
+    final source = await _showImageSourceOptions();
+    if (source == null) return;
+
+    setState(() => _isImageUploading = true);
+
+    try {
+      final image = await ImagePicker().pickImage(
+        source: source,
+        maxHeight: 1200,
+        maxWidth: 1200,
+        imageQuality: 85,
+      );
+
+      if (image == null || !mounted) {
+        setState(() => _isImageUploading = false);
+        return;
+      }
+
+      setState(() {
+        if (kIsWeb) {
+          _selectedImageUrl = image.path;
+        } else {
+          _selectedImage = File(image.path);
+        }
+        _isImageUploading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isImageUploading = false);
+        _showToast('Failed to select image: $e', isError: true);
+      }
     }
   }
 
-  Future<bool?> _showSignOutConfirmation() async {
-    return showDialog<bool>(
+  Future<ImageSource?> _showImageSourceOptions() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      builder:
+          (context) => Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Choose image source',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(
+                    Icons.camera_alt,
+                    color: Color(0xFF6E61FD),
+                  ),
+                  title: const Text('Take a photo'),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+                ListTile(
+                  leading: const Icon(
+                    Icons.photo_library,
+                    color: Color(0xFF6E61FD),
+                  ),
+                  title: const Text('Choose from gallery'),
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  // Save profile changes
+  Future<void> _saveProfile() async {
+    if (_isSaving) return;
+
+    setState(() {
+      _isSaving = true;
+      _loadingMessage = 'Saving profile...';
+    });
+
+    final profile = ref.read(userProfileProvider).value;
+    if (profile == null) {
+      setState(() => _isSaving = false);
+      _showToast('Error: User profile not found.', isError: true);
+      return;
+    }
+
+    try {
+      // Handle image upload
+      String? imageUrl;
+      final storageService = StorageService();
+
+      if (_selectedImage != null || _selectedImageUrl != null) {
+        // Delete old image if it exists
+        if (profile.photoUrl != null) {
+          try {
+            final oldImagePath = await storageService.getReferencePathFromUrl(
+              profile.photoUrl!,
+            );
+            if (oldImagePath != null) {
+              await storageService.deleteFile(oldImagePath);
+            }
+          } catch (e) {
+            debugPrint('Error deleting old image: $e');
+          }
+        }
+
+        // Upload new image
+        if (_selectedImage != null) {
+          try {
+            imageUrl = await _uploadImageWithTimeout(
+              storageService,
+              XFile(_selectedImage!.path),
+              profile.uid,
+            );
+          } catch (e) {
+            _showToast('Image upload timed out', isError: true);
+            setState(() => _isSaving = false);
+            return;
+          }
+        } else if (_selectedImageUrl != null) {
+          imageUrl = _selectedImageUrl;
+        }
+      }
+
+      // Update profile data
+      final updatedProfile = UserProfile(
+        uid: profile.uid,
+        email: profile.email,
+        username: _usernameController.text,
+        about: _aboutController.text,
+        photoUrl: imageUrl ?? profile.photoUrl,
+        level: profile.level,
+        isNewUser: false,
+      );
+
+      await ref
+          .read(userProfileProvider.notifier)
+          .updateProfile(updatedProfile);
+
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _showToast('Profile updated successfully!');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _showToast('Failed to update profile: $e', isError: true);
+      }
+    }
+  }
+
+  Future<String?> _uploadImageWithTimeout(
+    StorageService storageService,
+    XFile file,
+    String uid,
+  ) {
+    return storageService
+        .uploadXFile(file, uid)
+        .timeout(const Duration(seconds: 30));
+  }
+
+  // Sign out
+  Future<void> _signOut() async {
+    final shouldSignOut = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
+            backgroundColor: Colors.white,
             title: const Text('Sign Out'),
             content: const Text('Are you sure you want to sign out?'),
             actions: [
@@ -77,194 +250,119 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ],
           ),
     );
-  }
 
-  Future<void> _pickImage() async {
-    final source = await _showImageSourceSelector();
-    if (source == null) return;
-
-    final image = await ImagePicker().pickImage(source: source);
-    if (image == null) return;
-
-    if (!mounted) return;
-
-    if (kIsWeb) {
-      setState(() => _selectedImageUrl = image.path);
-    } else {
-      setState(() => _selectedImage = File(image.path));
+    if (shouldSignOut == true) {
+      await ref.read(authStateProvider.notifier).signOut();
+      ref.read(routerProvider).go('/signin');
     }
   }
 
-  Future<ImageSource?> _showImageSourceSelector() async {
-    return showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (context) => _ImageSourceBottomSheet(),
+  // Helper to display toast notifications
+  void _showToast(String message, {bool isError = false}) {
+    final successSnackBar = SnackBar(
+      content: Text(message),
+      backgroundColor: isError ? Colors.red : Colors.green,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     );
+    ScaffoldMessenger.of(context).showSnackBar(successSnackBar);
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = ref.watch(userProfileProvider).value;
+    final userProfileState = ref.watch(userProfileProvider);
+
+    // Update controllers when user data changes
     ref.listen<AsyncValue<UserProfile?>>(userProfileProvider, (_, next) {
-      next.when(
-        data: (user) {
-          if (user != null) {
-            _usernameController.text = user.username;
-            _aboutController.text = user.about ?? 'About yourself...';
-          }
-        },
-        error: (e, _) => debugPrint('Error fetching user profile: $e'),
-        loading: () => debugPrint('Loading user profile...'),
-      );
+      next.whenData((user) {
+        if (user != null) {
+          _usernameController.text = user.username;
+          _aboutController.text = user.about ?? 'About yourself...';
+        }
+      });
     });
+
     return Scaffold(
       backgroundColor: const Color(0xFF6E61FD),
-      appBar: _ProfileAppBar(onBack: () => ref.read(routerProvider).go('/')),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _ProfileHeader(
-              user: user,
-              selectedImage: _selectedImage,
-              selectedImageUrl: _selectedImageUrl,
-              onImagePressed: _pickImage,
-            ),
-            _ProfileForm(
-              usernameController: _usernameController,
-              aboutController: _aboutController,
-              email: user?.email,
-              onSave: () => _saveProfile(),
-              onSignOut: _handleSignOut,
-            ),
-          ],
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF6E61FD),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => ref.read(routerProvider).go('/'),
+        ),
+        title: const Text(
+          'Profile',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
-    );
-  }
-
-  Future<void> _saveProfile() async {
-    final profile = ref.read(userProfileProvider).value;
-    if (profile == null) {
-      Fluttertoast.showToast(
-        msg: 'Error: User profile not found.',
-        toastLength: Toast.LENGTH_LONG,
-        gravity: ToastGravity.SNACKBAR,
-        timeInSecForIosWeb: 1,
-        backgroundColor: Colors.red,
-        textColor: Colors.white,
-        fontSize: 16.0,
-      );
-      return;
-    }
-
-    final updatedProfile = UserProfile(
-      uid: profile.uid,
-      email: profile.email,
-      username: _usernameController.text,
-      about: _aboutController.text,
-      photoUrl: _selectedImageUrl ?? profile.photoUrl,
-      level: profile.level,
-      isNewUser: false,
-    );
-
-    await ref.read(userProfileProvider.notifier).updateProfile(updatedProfile);
-    Fluttertoast.showToast(
-      msg: 'Profile updated successfully!',
-      toastLength: Toast.LENGTH_LONG,
-      gravity: ToastGravity.SNACKBAR,
-      timeInSecForIosWeb: 1,
-      backgroundColor: Colors.green,
-      textColor: Colors.white,
-      fontSize: 16.0,
-    );
-  }
-}
-
-// Extracted Widgets for Better Organization
-
-class _ProfileAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final VoidCallback onBack;
-
-  const _ProfileAppBar({required this.onBack});
-
-  @override
-  Widget build(BuildContext context) {
-    return AppBar(
-      backgroundColor: const Color(0xFF6E61FD),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: onBack,
-      ),
-      title: const Text(
-        'Profile',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.w600,
-        ),
+      body: Stack(
+        children: [
+          SafeArea(
+            child: userProfileState.when(
+              loading: () => _buildLoadingView('Loading profile...'),
+              error:
+                  (error, _) => _buildErrorView(
+                    error.toString(),
+                    () => ref.refresh(userProfileProvider),
+                  ),
+              data:
+                  (user) =>
+                      user == null
+                          ? _buildErrorView('User profile not found', null)
+                          : _buildProfileView(user),
+            ),
+          ),
+          if (_isSaving) _buildSavingOverlay(),
+        ],
       ),
     );
   }
 
-  @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-}
+  // UI Components
+  Widget _buildProfileView(UserProfile user) {
+    return Column(
+      children: [_buildProfileHeader(user), _buildProfileForm(user)],
+    );
+  }
 
-class _ProfileHeader extends StatelessWidget {
-  final UserProfile? user;
-  final File? selectedImage;
-  final String? selectedImageUrl;
-  final VoidCallback onImagePressed;
-
-  const _ProfileHeader({
-    required this.user,
-    required this.selectedImage,
-    required this.selectedImageUrl,
-    required this.onImagePressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildProfileHeader(UserProfile user) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 40),
       decoration: const BoxDecoration(color: Color(0xFF6E61FD)),
       child: Column(
         children: [
-          _ProfileAvatar(
-            user: user,
-            selectedImage: selectedImage,
-            selectedImageUrl: selectedImageUrl,
-            onPressed: onImagePressed,
-          ),
+          _buildProfileAvatar(user),
           const SizedBox(height: 20),
-          const _LevelIndicator(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF8D84FE),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text(
+              'Level 3 Explorer',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
-}
 
-class _ProfileAvatar extends StatelessWidget {
-  final UserProfile? user;
-  final File? selectedImage;
-  final String? selectedImageUrl;
-  final VoidCallback onPressed;
-
-  const _ProfileAvatar({
-    required this.user,
-    required this.selectedImage,
-    required this.selectedImageUrl,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildProfileAvatar(UserProfile user) {
     return Stack(
       alignment: Alignment.bottomRight,
       children: [
         GestureDetector(
-          onTap: onPressed,
+          onTap: _isImageUploading ? null : _pickImage,
           child: Container(
             width: 120,
             height: 120,
@@ -272,89 +370,77 @@ class _ProfileAvatar extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white, width: 3),
             ),
-            child: ClipOval(child: _getAvatarImage()),
+            child: ClipOval(
+              child:
+                  _isImageUploading
+                      ? _buildLoadingAvatar()
+                      : _buildAvatarImage(user),
+            ),
           ),
         ),
-        _EditImageButton(onPressed: onPressed),
+        if (!_isImageUploading)
+          GestureDetector(
+            onTap: _pickImage,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.edit, color: Color(0xFF6E61FD), size: 20),
+            ),
+          ),
       ],
     );
   }
 
-  Widget _getAvatarImage() {
-    if (selectedImage != null) {
-      return Image.file(selectedImage!, fit: BoxFit.cover);
+  Widget _buildAvatarImage(UserProfile user) {
+    if (_selectedImage != null) {
+      return Image.file(_selectedImage!, fit: BoxFit.cover);
     }
-    if (selectedImageUrl != null) {
-      return Image.network(selectedImageUrl!, fit: BoxFit.cover);
+    if (_selectedImageUrl != null) {
+      return Image.network(_selectedImageUrl!, fit: BoxFit.cover);
     }
-    if (user?.photoUrl != null) {
+    if (user.photoUrl != null) {
       return Image.network(
-        user!.photoUrl!,
+        user.photoUrl!,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const _DefaultAvatar(),
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value:
+                  loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded /
+                          loadingProgress.expectedTotalBytes!
+                      : null,
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          );
+        },
+        errorBuilder:
+            (_, __, ___) => Image.asset(
+              'assets/profile/default_profile.png',
+              fit: BoxFit.cover,
+            ),
       );
     }
-    return const _DefaultAvatar();
+    return Image.asset('assets/profile/default_profile.png', fit: BoxFit.cover);
   }
-}
 
-class _EditImageButton extends StatelessWidget {
-  final VoidCallback onPressed;
-
-  const _EditImageButton({required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.edit, color: Color(0xFF6E61FD), size: 20),
-      ),
-    );
-  }
-}
-
-class _LevelIndicator extends StatelessWidget {
-  const _LevelIndicator();
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildLoadingAvatar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF8D84FE),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: const Text(
-        'Level 3 Explorer',
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+      color: Colors.black45,
+      child: const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+          strokeWidth: 2,
+        ),
       ),
     );
   }
-}
 
-class _ProfileForm extends StatelessWidget {
-  final TextEditingController usernameController;
-  final TextEditingController aboutController;
-  final String? email;
-  final VoidCallback onSave;
-  final VoidCallback onSignOut;
-
-  const _ProfileForm({
-    required this.usernameController,
-    required this.aboutController,
-    required this.email,
-    required this.onSave,
-    required this.onSignOut,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildProfileForm(UserProfile user) {
     return Expanded(
       child: Container(
         width: double.infinity,
@@ -370,152 +456,37 @@ class _ProfileForm extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _EditableField(
-                label: 'Username',
-                controller: usernameController,
-                icon: Icons.person_outline,
+              _buildEditableField(
+                'Username',
+                _usernameController,
+                Icons.person_outline,
               ),
               const SizedBox(height: 24),
-              _NonEditableField(
-                label: 'Email',
-                value: email ?? 'no-email@example.com',
-                icon: Icons.email_outlined,
-              ),
+              _buildNonEditableField('Email', user.email, Icons.email_outlined),
               const SizedBox(height: 24),
-              _EditableField(
-                label: 'About',
-                controller: aboutController,
-                icon: Icons.info_outline,
+              _buildEditableField(
+                'About',
+                _aboutController,
+                Icons.info_outline,
                 maxLines: 4,
               ),
               const SizedBox(height: 40),
-              _SaveButton(onPressed: onSave),
+              _buildSaveButton(),
               const SizedBox(height: 24),
-              _SignOutButton(onPressed: onSignOut),
+              _buildSignOutButton(),
             ],
           ),
         ),
       ),
     );
   }
-}
 
-class _SaveButton extends StatelessWidget {
-  final VoidCallback onPressed;
-
-  const _SaveButton({required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: 200,
-        child: ElevatedButton(
-          onPressed: onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF6E61FD),
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          child: const Text(
-            'Save Changes',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SignOutButton extends StatelessWidget {
-  final VoidCallback onPressed;
-
-  const _SignOutButton({required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: 200,
-        child: OutlinedButton(
-          onPressed: onPressed,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.red,
-            side: const BorderSide(color: Colors.red, width: 1.5),
-            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.logout, size: 20),
-              SizedBox(width: 8),
-              Text(
-                'Sign Out',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ImageSourceBottomSheet extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Choose image source',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
-          ListTile(
-            leading: const Icon(Icons.camera_alt, color: Color(0xFF6E61FD)),
-            title: const Text('Take a photo'),
-            onTap: () => Navigator.pop(context, ImageSource.camera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library, color: Color(0xFF6E61FD)),
-            title: const Text('Choose from gallery'),
-            onTap: () => Navigator.pop(context, ImageSource.gallery),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// Keep your existing _EditableField, _NonEditableField, and _DefaultAvatar classes
-// Reusable Editable Field Component
-class _EditableField extends StatelessWidget {
-  final String label;
-  final TextEditingController controller;
-  final IconData icon;
-  final int? maxLines;
-
-  const _EditableField({
-    required this.label,
-    required this.controller,
-    required this.icon,
-    this.maxLines = 1,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildEditableField(
+    String label,
+    TextEditingController controller,
+    IconData icon, {
+    int maxLines = 1,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -531,6 +502,7 @@ class _EditableField extends StatelessWidget {
         TextField(
           controller: controller,
           maxLines: maxLines,
+          enabled: !_isSaving,
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: const Color(0xFF6E61FD)),
             border: OutlineInputBorder(
@@ -541,27 +513,19 @@ class _EditableField extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: Color(0xFFC6C2FF)),
             ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: const Color(0xFFC6C2FF).withOpacity(0.5),
+              ),
+            ),
           ),
         ),
       ],
     );
   }
-}
 
-// Reusable Non-Editable Field Component
-class _NonEditableField extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _NonEditableField({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildNonEditableField(String label, String value, IconData icon) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -582,28 +546,187 @@ class _NonEditableField extends StatelessWidget {
             border: Border.all(color: const Color(0xFFC6C2FF)),
           ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(icon, color: const Color(0xFF6E61FD)),
               const SizedBox(width: 12),
-              Text(value),
+              Expanded(child: Text(value)),
             ],
           ),
         ),
       ],
     );
   }
-}
 
-class _DefaultAvatar extends StatelessWidget {
-  const _DefaultAvatar();
+  Widget _buildSaveButton() {
+    return Center(
+      child: SizedBox(
+        width: 200,
+        child: ElevatedButton(
+          onPressed: _isSaving ? null : _saveProfile,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF6E61FD),
+            disabledBackgroundColor: const Color(0xFF6E61FD).withOpacity(0.7),
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child:
+              _isSaving
+                  ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      strokeWidth: 2,
+                    ),
+                  )
+                  : const Text(
+                    'Save Changes',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+        ),
+      ),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSignOutButton() {
+    return Center(
+      child: SizedBox(
+        width: 200,
+        child: OutlinedButton(
+          onPressed: _isSaving ? null : _signOut,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.red,
+            disabledForegroundColor: Colors.red.withOpacity(0.5),
+            side: BorderSide(
+              color: _isSaving ? Colors.red.withOpacity(0.5) : Colors.red,
+              width: 1.5,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.logout, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Sign Out',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingView(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            strokeWidth: 3,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            message,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorView(String error, VoidCallback? onRetry) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white, size: 48),
+            const SizedBox(height: 16),
+            const Text(
+              'Something went wrong',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              error,
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            if (onRetry != null)
+              ElevatedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF6E61FD),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSavingOverlay() {
     return Container(
-      color: const Color(0xFFC6C2FF),
-      child: const Center(
-        child: Icon(Icons.person, color: Color(0xFF281CA3), size: 50),
+      color: Colors.black54,
+      child: Center(
+        child: Card(
+          elevation: 8,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6E61FD)),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  _loadingMessage,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

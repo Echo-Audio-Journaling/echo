@@ -63,12 +63,12 @@ class SignInWidget extends ConsumerWidget {
                         const Text(
                           'Echo: Audio Journal',
                           style: TextStyle(
-                            fontSize: 32,
+                            fontSize: 30,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF6E61FD),
                           ),
                         ),
-                        const SizedBox(height: 50),
+                        const SizedBox(height: 30),
                         _GoogleSignInButton(ref: ref),
                         const SizedBox(height: 30),
                         const Text(
@@ -101,7 +101,7 @@ class HypnoticSlogan extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const _SloganLine(
-          text: 'A place where',
+          text: 'A place where your',
           weight: FontWeight.w600,
           size: 24,
         ),
@@ -113,7 +113,7 @@ class HypnoticSlogan extends StatelessWidget {
           width: double.maxFinite,
           child: DefaultTextStyle(
             style: const TextStyle(
-              fontSize: 40,
+              fontSize: 50,
               fontWeight: FontWeight.w600,
               color: Colors.white,
             ),
@@ -121,17 +121,17 @@ class HypnoticSlogan extends StatelessWidget {
               isRepeatingAnimation: true,
               animatedTexts: [
                 TyperAnimatedText(
-                  'your stories',
+                  'stories',
                   speed: const Duration(milliseconds: 150),
                   textAlign: TextAlign.center,
                 ),
                 TyperAnimatedText(
-                  'your thoughts',
+                  'thoughts',
                   speed: const Duration(milliseconds: 150),
                   textAlign: TextAlign.center,
                 ),
                 TyperAnimatedText(
-                  'your emotions',
+                  'emotions',
                   speed: const Duration(milliseconds: 150),
                   textAlign: TextAlign.center,
                 ),
@@ -188,7 +188,7 @@ class _GoogleSignInButton extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         foregroundColor: Colors.black87,
         side: const BorderSide(color: Colors.black26),
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 50),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 30),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),
       child: Row(
