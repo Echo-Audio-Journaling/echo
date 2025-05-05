@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:echo/features/auth/provider/auth_provider.dart';
 import 'package:echo/features/auth/presentation/auth_screen.dart';
 import 'package:echo/features/detail/presentation/date_detail_screen.dart';
 import 'package:echo/features/home/presentation/home_screen.dart';
+import 'package:echo/features/recording/presentation/video_recorder_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:echo/features/auth/presentation/profile_screen.dart';
@@ -42,6 +45,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: "/detail",
         name: "detail",
         builder: (context, state) => DateDetailScreen(date: DateTime.now()),
+      ),
+      GoRoute(
+        path: '/recording',
+        name: 'recording',
+        builder: (context, state) => VideoRecorderScreen(),
       ),
     ],
   );
