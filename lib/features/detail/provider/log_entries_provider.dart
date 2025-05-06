@@ -305,8 +305,8 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
     });
   }
 
-  // Add this to the LogEntriesProvider class
-  void updateAudioEntryTags(String entryId, List<String> tags) async {
+  // Update audio log entry
+  void updateAudioEntry(AudioLogEntry updatedEntry) async {
     if (_userId == null) return;
 
     try {
@@ -314,32 +314,16 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
       final entries = state.value ?? [];
 
       // Find the entry to update
-      final index = entries.indexWhere((entry) => entry.id == entryId);
+      final index = entries.indexWhere((entry) => entry.id == updatedEntry.id);
       if (index == -1) return;
-
-      // Ensure the entry is an AudioLogEntry
-      final entry = entries[index];
-      if (entry is! AudioLogEntry) return;
-
-      // Create updated entry with new tags
-      final updatedEntry = AudioLogEntry(
-        id: entry.id,
-        timestamp: entry.timestamp,
-        title: entry.title,
-        audioUrl: entry.audioUrl,
-        transcription: entry.transcription,
-        duration: entry.duration,
-        isPlaying: entry.isPlaying,
-        tags: tags,
-      );
 
       // Update Firestore
       await _firestore
           .collection('users')
           .doc(_userId)
           .collection('logs')
-          .doc(entryId)
-          .update({'tags': tags});
+          .doc(updatedEntry.id)
+          .update(updatedEntry.toJson());
 
       // Update local state
       final updatedEntries = [...entries];
@@ -347,7 +331,7 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
       state = AsyncData(updatedEntries);
     } catch (error) {
       if (kDebugMode) {
-        print('Error updating tags: $error');
+        print('Error updating audio entry: $error');
       }
     }
   }

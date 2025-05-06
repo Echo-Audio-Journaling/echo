@@ -1,3 +1,4 @@
+import 'package:echo/app/router.dart';
 import 'package:echo/features/detail/provider/log_entries_provider.dart';
 import 'package:echo/features/detail/widgets/edit_title_dialog.dart';
 import 'package:echo/shared/models/log_entry.dart';
@@ -129,7 +130,7 @@ class _AudioLogItemState extends ConsumerState<AudioLogItem> {
   }
 
   void _viewFullTranscription() {
-    print('View full transcription for ${widget.entry.title}');
+    ref.read(routerProvider).go('/audio/${widget.entry.id}');
   }
 
   @override

@@ -1,3 +1,4 @@
+import 'package:echo/features/audio_detail/presentation/audio_detail_screen.dart';
 import 'package:echo/features/auth/provider/auth_provider.dart';
 import 'package:echo/features/auth/presentation/auth_screen.dart';
 import 'package:echo/features/detail/presentation/date_detail_screen.dart';
@@ -50,6 +51,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           final date = DateTime(year, month, day);
 
           return DateDetailPage(date: date);
+        },
+      ),
+      GoRoute(
+        path: '/audio/:id',
+        builder: (context, state) {
+          final entryId = state.pathParameters['id'] ?? '';
+          return AudioDetailScreen(entryId: entryId);
         },
       ),
     ],
