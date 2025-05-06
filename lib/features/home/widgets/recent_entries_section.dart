@@ -9,50 +9,35 @@ class RecentEntriesSection extends StatelessWidget {
       title: 'Morning reflection: Starting the day with gratitude',
       dateTime: DateTime.now().subtract(const Duration(hours: 3)),
       category: 'personal',
-      onTap: () {
-        // Handle entry tap
-        print('Tapped on entry 1');
-      },
+      onTap: () {},
     ),
     EntryData(
       id: '2',
       title: 'Project meeting notes: New feature planning',
       dateTime: DateTime.now().subtract(const Duration(hours: 6)),
       category: 'work',
-      onTap: () {
-        // Handle entry tap
-        print('Tapped on entry 2');
-      },
+      onTap: () {},
     ),
     EntryData(
       id: '3',
       title: 'Workout log: 5k run and strength training',
       dateTime: DateTime.now().subtract(const Duration(days: 1)),
       category: 'health',
-      onTap: () {
-        // Handle entry tap
-        print('Tapped on entry 3');
-      },
+      onTap: () {},
     ),
     EntryData(
       id: '4',
       title: 'App design ideas for the journal feature',
       dateTime: DateTime.now().subtract(const Duration(days: 2)),
       category: 'ideas',
-      onTap: () {
-        // Handle entry tap
-        print('Tapped on entry 4');
-      },
+      onTap: () {},
     ),
     EntryData(
       id: '5',
       title: 'Monthly goals: Focus areas for May',
       dateTime: DateTime.now().subtract(const Duration(days: 3)),
       category: 'goals',
-      onTap: () {
-        // Handle entry tap
-        print('Tapped on entry 5');
-      },
+      onTap: () {},
     ),
     // Additional entries (will show "more entries" indicator)
     EntryData(

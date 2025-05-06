@@ -310,7 +310,7 @@ Widget _buildSideButton({
   );
 }
 
-// Enhanced center recording button with animation
+// Enhanced center recording button with subtle animation
 Widget _buildCenterButton({
   required bool isRecording,
   required Color primaryColor,
@@ -322,28 +322,35 @@ Widget _buildCenterButton({
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Ripple effect for recording state
+        // Subtle recording indicator
         Stack(
           alignment: Alignment.center,
           children: [
-            // Outer pulsing circle (only when recording)
+            // Outer indicator for recording state - more subtle animation
             if (isRecording)
               AnimatedBuilder(
                 animation: animationController,
                 builder: (context, child) {
                   return Container(
-                    height: 84 + (animationController.value * 12),
-                    width: 84 + (animationController.value * 12),
+                    height:
+                        76 +
+                        (animationController.value *
+                            4), // Reduced size variation
+                    width:
+                        76 +
+                        (animationController.value *
+                            4), // Reduced size variation
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.red.withOpacity(
-                        0.1 * (1 - animationController.value),
-                      ),
+                      color: Colors.transparent, // No background color
                       border: Border.all(
                         color: Colors.red.withOpacity(
-                          0.3 * (1 - animationController.value),
+                          0.2 +
+                              (0.1 *
+                                  animationController
+                                      .value), // Subtler opacity change
                         ),
-                        width: 2,
+                        width: 1.5, // Thinner border
                       ),
                     ),
                   );
@@ -361,10 +368,10 @@ Widget _buildCenterButton({
                   BoxShadow(
                     color:
                         isRecording
-                            ? Colors.red.withOpacity(0.4)
-                            : primaryColor.withOpacity(0.4),
-                    blurRadius: 12,
-                    spreadRadius: 2,
+                            ? Colors.red.withOpacity(0.3) // Reduced opacity
+                            : primaryColor.withOpacity(0.3),
+                    blurRadius: 8, // Reduced blur
+                    spreadRadius: 1, // Reduced spread
                   ),
                 ],
                 border: Border.all(color: Colors.white, width: 3),
@@ -386,14 +393,14 @@ Widget _buildCenterButton({
               ),
             ),
 
-            // Additional decorator dot for recording
+            // Small recording indicator dot
             if (isRecording)
               Positioned(
                 top: 14,
                 right: 14,
                 child: Container(
-                  height: 8,
-                  width: 8,
+                  height: 6, // Smaller dot
+                  width: 6, // Smaller dot
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.white,
@@ -422,9 +429,11 @@ class _TranscriptionSheet extends ConsumerStatefulWidget {
 
 class _TranscriptionSheetState extends ConsumerState<_TranscriptionSheet> {
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _tagController = TextEditingController();
   String _transcription =
       ""; // In a real app, this would come from a transcription service
   bool _isLoading = true;
+  final List<String> _tags = []; // List to store tags
 
   @override
   void initState() {
@@ -435,7 +444,26 @@ class _TranscriptionSheetState extends ConsumerState<_TranscriptionSheet> {
   @override
   void dispose() {
     _titleController.dispose();
+    _tagController.dispose();
     super.dispose();
+  }
+
+  // Add a tag to the list
+  void _addTag() {
+    final tag = _tagController.text.trim();
+    if (tag.isNotEmpty && !_tags.contains(tag)) {
+      setState(() {
+        _tags.add(tag);
+        _tagController.clear();
+      });
+    }
+  }
+
+  // Remove a tag from the list
+  void _removeTag(String tag) {
+    setState(() {
+      _tags.remove(tag);
+    });
   }
 
   Future<void> _processAudio() async {
@@ -468,7 +496,7 @@ class _TranscriptionSheetState extends ConsumerState<_TranscriptionSheet> {
     // For now, just use the local path
     final audioUrl = widget.audioPath;
 
-    // Create a new audio log entry
+    // Create a new audio log entry with tags
     ref
         .read(logEntriesProvider.notifier)
         .addAudioLogEntry(
@@ -479,6 +507,7 @@ class _TranscriptionSheetState extends ConsumerState<_TranscriptionSheet> {
           ), // This would be calculated from the actual audio file
           title: title,
           timestamp: widget.date,
+          tags: _tags, // Pass the tags
         );
 
     // Close the sheet
@@ -521,49 +550,125 @@ class _TranscriptionSheetState extends ConsumerState<_TranscriptionSheet> {
                   ],
                 ),
               )
-              : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Drag handle
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Title field
-                  TextField(
-                    controller: _titleController,
-                    decoration: InputDecoration(
-                      labelText: 'Title',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF6E61FD),
-                          width: 2,
+              : SingleChildScrollView(
+                // Make the entire content scrollable
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Drag handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(10),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-                  // Transcription
-                  const Text(
-                    'Transcription',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: Container(
+                    // Title field
+                    TextField(
+                      controller: _titleController,
+                      decoration: InputDecoration(
+                        labelText: 'Title',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF6E61FD),
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Tags section
+                    const Text(
+                      'Tags',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Tag input and add button
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _tagController,
+                            decoration: InputDecoration(
+                              hintText: 'Add a tag',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF6E61FD),
+                                  width: 2,
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                            onSubmitted: (_) => _addTag(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: _addTag,
+                          icon: const Icon(
+                            Icons.add_circle,
+                            color: Color(0xFF6E61FD),
+                            size: 36,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Display tags as a wrapped list of chips
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children:
+                          _tags
+                              .map(
+                                (tag) => Chip(
+                                  label: Text(tag),
+                                  deleteIcon: const Icon(Icons.close, size: 16),
+                                  onDeleted: () => _removeTag(tag),
+                                  backgroundColor: const Color(
+                                    0xFF6E61FD,
+                                  ).withOpacity(0.2),
+                                ),
+                              )
+                              .toList(),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Transcription
+                    const Text(
+                      'Transcription',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Fixed height container for transcription
+                    Container(
+                      height: 200, // Fixed height for transcription
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.grey[100],
@@ -572,32 +677,33 @@ class _TranscriptionSheetState extends ConsumerState<_TranscriptionSheet> {
                       ),
                       child: SingleChildScrollView(child: Text(_transcription)),
                     ),
-                  ),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-                  // Save button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _saveAudioEntry,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6E61FD),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    // Save button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _saveAudioEntry,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6E61FD),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                      ),
-                      child: const Text(
-                        'Save Entry',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                        child: const Text(
+                          'Save Entry',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 10), // Add some bottom padding
+                  ],
+                ),
               ),
     );
   }

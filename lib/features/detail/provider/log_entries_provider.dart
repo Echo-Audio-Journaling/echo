@@ -79,12 +79,15 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
   }
 
   // Add a new audio log entry
+  // Add a new audio log entry
   Future<String?> addAudioLogEntry({
     required String audioUrl,
     required String transcription,
     required Duration duration,
     String? title,
     DateTime? timestamp,
+    List<String> tags =
+        const [], // Added tags parameter with default empty list
   }) async {
     if (_userId == null) return null;
 
@@ -104,6 +107,7 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
         transcription: transcription,
         duration: duration,
         isPlaying: false,
+        tags: tags, // Pass tags to the constructor
       );
 
       // Save to Firestore
@@ -293,11 +297,59 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
             transcription: entry.transcription,
             duration: entry.duration,
             isPlaying: isPlaying,
+            tags: entry.tags, // Preserve existing tags
           );
         }
         return entry;
       }).toList();
     });
+  }
+
+  // Add this to the LogEntriesProvider class
+  void updateAudioEntryTags(String entryId, List<String> tags) async {
+    if (_userId == null) return;
+
+    try {
+      // Get the current state
+      final entries = state.value ?? [];
+
+      // Find the entry to update
+      final index = entries.indexWhere((entry) => entry.id == entryId);
+      if (index == -1) return;
+
+      // Ensure the entry is an AudioLogEntry
+      final entry = entries[index];
+      if (entry is! AudioLogEntry) return;
+
+      // Create updated entry with new tags
+      final updatedEntry = AudioLogEntry(
+        id: entry.id,
+        timestamp: entry.timestamp,
+        title: entry.title,
+        audioUrl: entry.audioUrl,
+        transcription: entry.transcription,
+        duration: entry.duration,
+        isPlaying: entry.isPlaying,
+        tags: tags,
+      );
+
+      // Update Firestore
+      await _firestore
+          .collection('users')
+          .doc(_userId)
+          .collection('logs')
+          .doc(entryId)
+          .update({'tags': tags});
+
+      // Update local state
+      final updatedEntries = [...entries];
+      updatedEntries[index] = updatedEntry;
+      state = AsyncData(updatedEntries);
+    } catch (error) {
+      if (kDebugMode) {
+        print('Error updating tags: $error');
+      }
+    }
   }
 
   // Helper method to generate a title from transcription

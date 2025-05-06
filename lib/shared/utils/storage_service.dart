@@ -34,7 +34,6 @@ class StorageService {
       final downloadUrl = await snapshot.ref.getDownloadURL();
       return downloadUrl;
     } catch (e) {
-      print('Error uploading file: $e');
       return null;
     }
   }
