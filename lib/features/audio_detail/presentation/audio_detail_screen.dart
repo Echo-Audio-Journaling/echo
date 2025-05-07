@@ -67,6 +67,7 @@ class AudioDetailScreen extends ConsumerWidget {
       },
       loading:
           () => Scaffold(
+            backgroundColor: Colors.white,
             body: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,

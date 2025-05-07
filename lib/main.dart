@@ -25,6 +25,8 @@ class EchoApp extends ConsumerWidget {
         primaryColor: const Color(0xFF6E61FD),
         useMaterial3: true,
         splashFactory: NoSplash.splashFactory,
+        dialogTheme: DialogTheme(backgroundColor: Colors.white),
+        scaffoldBackgroundColor: Colors.white,
       ),
       debugShowCheckedModeBanner: false,
     );

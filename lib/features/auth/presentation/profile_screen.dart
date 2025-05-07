@@ -1,8 +1,8 @@
 import 'package:echo/app/router.dart';
 import 'package:echo/features/auth/provider/auth_provider.dart';
 import 'package:echo/features/auth/provider/profile_provider.dart';
+import 'package:echo/features/media_upload/services/storage_service.dart';
 import 'package:echo/shared/models/user_profile.dart';
-import 'package:echo/shared/utils/storage_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -149,17 +149,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     try {
       // Handle image upload
       String? imageUrl;
-      final storageService = StorageService();
 
       if (_selectedImage != null || _selectedImageUrl != null) {
         // Delete old image if it exists
         if (profile.photoUrl != null) {
           try {
-            final oldImagePath = await storageService.getReferencePathFromUrl(
-              profile.photoUrl!,
-            );
+            final oldImagePath = await ref
+                .read(storageServiceProvider)
+                .getReferencePathFromUrl(profile.photoUrl!);
             if (oldImagePath != null) {
-              await storageService.deleteFile(oldImagePath);
+              await ref.read(storageServiceProvider).deleteFile(oldImagePath);
             }
           } catch (e) {
             debugPrint('Error deleting old image: $e');
@@ -170,7 +169,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         if (_selectedImage != null) {
           try {
             imageUrl = await _uploadImageWithTimeout(
-              storageService,
               XFile(_selectedImage!.path),
               profile.uid,
             );
@@ -211,13 +209,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  Future<String?> _uploadImageWithTimeout(
-    StorageService storageService,
-    XFile file,
-    String uid,
-  ) {
-    return storageService
-        .uploadXFile(file, uid)
+  Future<String?> _uploadImageWithTimeout(XFile file, String uid) {
+    return ref
+        .read(storageServiceProvider)
+        .uploadProfile(file, uid)
         .timeout(const Duration(seconds: 30));
   }
 

@@ -1,7 +1,7 @@
 import 'package:echo/features/audio_detail/presentation/audio_detail_screen.dart';
 import 'package:echo/features/auth/provider/auth_provider.dart';
 import 'package:echo/features/auth/presentation/auth_screen.dart';
-import 'package:echo/features/detail/presentation/date_detail_screen.dart';
+import 'package:echo/features/date_detail/presentation/date_detail_screen.dart';
 import 'package:echo/features/home/presentation/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

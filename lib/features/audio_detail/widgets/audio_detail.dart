@@ -1,7 +1,8 @@
 import 'package:echo/app/router.dart';
+import 'package:echo/features/audio_detail/provider/audio_entry_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:echo/features/detail/provider/log_entries_provider.dart';
+import 'package:echo/features/date_detail/provider/log_entries_provider.dart';
 import 'package:echo/shared/models/log_entry.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:intl/intl.dart';
@@ -149,6 +150,9 @@ class _AudioDetailWidgetState extends ConsumerState<AudioDetailWidget> {
 
     // Update in provider
     ref.read(logEntriesProvider.notifier).updateAudioEntry(updatedEntry);
+
+    // Refresh the entry in the provider
+    ref.refresh(audioEntryProvider(widget.entry.id));
 
     // Exit edit mode
     setState(() {
@@ -398,17 +402,19 @@ class _AudioDetailWidgetState extends ConsumerState<AudioDetailWidget> {
                                                     ),
                                                   ],
                                                 )
-                                                : Text(
-                                                  _tags[index],
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .labelSmall
-                                                      ?.copyWith(
-                                                        color: primaryColor,
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        letterSpacing: 0.5,
-                                                      ),
+                                                : Center(
+                                                  child: Text(
+                                                    _tags[index],
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .labelSmall
+                                                        ?.copyWith(
+                                                          color: primaryColor,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          letterSpacing: 0.5,
+                                                        ),
+                                                  ),
                                                 ),
                                       );
                                     },
