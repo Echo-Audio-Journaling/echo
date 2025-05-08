@@ -46,5 +46,4 @@ flutter:
     - assets/icons/
     - assets/images/
     - assets/profile/
-    - assets/credentials/
     - .env
