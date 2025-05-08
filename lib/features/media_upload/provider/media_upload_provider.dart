@@ -1,4 +1,3 @@
-// Simplified media_upload_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Simple state class for media upload process

@@ -135,7 +135,8 @@ class _CreateContentActionBarState extends ConsumerState<CreateContentActionBar>
       if (isVideo) {
         final XFile? videoFile = await _imagePicker.pickVideo(
           source: source,
-          maxDuration: const Duration(minutes: 5),
+          maxDuration: const Duration(seconds: 60),
+          preferredCameraDevice: CameraDevice.rear,
         );
 
         if (videoFile != null && mounted) {

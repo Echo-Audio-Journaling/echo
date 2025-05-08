@@ -30,7 +30,7 @@ class _TranscriptionSheetState extends ConsumerState<TranscriptionSheet> {
   bool _isLoading = true;
   bool _isSaving = false;
   final List<String> _tags = [];
-  Duration _audioDuration = const Duration(seconds: 30);
+  late Duration _audioDuration;
 
   @override
   void initState() {
@@ -131,7 +131,14 @@ class _TranscriptionSheetState extends ConsumerState<TranscriptionSheet> {
             transcription: _transcription,
             duration: _audioDuration,
             title: title,
-            timestamp: widget.date,
+            timestamp: DateTime(
+              widget.date.year,
+              widget.date.month,
+              widget.date.day,
+              DateTime.now().hour,
+              DateTime.now().minute,
+              DateTime.now().second,
+            ),
             tags: _tags,
           );
 

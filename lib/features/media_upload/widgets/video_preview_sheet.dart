@@ -1,4 +1,3 @@
-// Simplified video_preview_sheet.dart
 import 'dart:io';
 import 'package:echo/features/auth/provider/auth_provider.dart';
 import 'package:echo/features/media_upload/provider/media_upload_provider.dart';
@@ -7,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:echo/features/date_detail/provider/log_entries_provider.dart';
+import 'package:video_player/video_player.dart';
 
 // Video preview after selecting a video
 class VideoPreviewSheet extends ConsumerStatefulWidget {
@@ -25,24 +25,23 @@ class VideoPreviewSheet extends ConsumerStatefulWidget {
 
 class _VideoPreviewSheetState extends ConsumerState<VideoPreviewSheet> {
   final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
   bool _isSaving = false;
-  final Duration _duration = const Duration(seconds: 30); // Default duration
+  late Duration _duration;
 
   @override
   void initState() {
     super.initState();
     _titleController.text =
         "Video ${DateTime.now().toString().substring(0, 16)}";
-
-    // Note: In a real app, you'd extract real video duration here
-    // using a video player package or media information extractor
+    VideoPlayerController videoPlayerController = VideoPlayerController.file(
+      File(widget.videoFile.path),
+    );
+    _duration = videoPlayerController.value.duration;
   }
 
   @override
   void dispose() {
     _titleController.dispose();
-    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -91,9 +90,16 @@ class _VideoPreviewSheetState extends ConsumerState<VideoPreviewSheet> {
           .addVideoLogEntry(
             videoUrl: videoUrl,
             title: title,
-            description: _descriptionController.text.trim(),
+            description: null,
             duration: _duration, // This should be the actual video duration
-            timestamp: widget.date,
+            timestamp: DateTime(
+              widget.date.year,
+              widget.date.month,
+              widget.date.day,
+              DateTime.now().hour,
+              DateTime.now().minute,
+              DateTime.now().second,
+            ),
           );
 
       // Close the sheet

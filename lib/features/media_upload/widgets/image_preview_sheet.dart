@@ -1,4 +1,3 @@
-// Simplified image_preview_sheet.dart
 import 'dart:io';
 import 'package:echo/features/auth/provider/auth_provider.dart';
 import 'package:echo/features/media_upload/provider/media_upload_provider.dart';
@@ -25,7 +24,6 @@ class ImagePreviewSheet extends ConsumerStatefulWidget {
 
 class _ImagePreviewSheetState extends ConsumerState<ImagePreviewSheet> {
   final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
   bool _isSaving = false;
 
   @override
@@ -38,7 +36,6 @@ class _ImagePreviewSheetState extends ConsumerState<ImagePreviewSheet> {
   @override
   void dispose() {
     _titleController.dispose();
-    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -87,8 +84,15 @@ class _ImagePreviewSheetState extends ConsumerState<ImagePreviewSheet> {
           .addImageLogEntry(
             imageUrl: imageUrl,
             title: title,
-            description: _descriptionController.text.trim(),
-            timestamp: widget.date,
+            description: null,
+            timestamp: DateTime(
+              widget.date.year,
+              widget.date.month,
+              widget.date.day,
+              DateTime.now().hour,
+              DateTime.now().minute,
+              DateTime.now().second,
+            ),
           );
 
       // Close the sheet
