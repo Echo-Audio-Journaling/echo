@@ -152,7 +152,7 @@ class _AudioDetailWidgetState extends ConsumerState<AudioDetailWidget> {
     ref.read(logEntriesProvider.notifier).updateAudioEntry(updatedEntry);
 
     // Refresh the entry in the provider
-    ref.refresh(audioEntryProvider(widget.entry.id));
+    final _ = ref.refresh(audioEntryProvider(widget.entry.id));
 
     // Exit edit mode
     setState(() {
