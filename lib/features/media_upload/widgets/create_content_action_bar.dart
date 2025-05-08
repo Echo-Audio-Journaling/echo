@@ -78,14 +78,15 @@ class _CreateContentActionBarState extends ConsumerState<CreateContentActionBar>
     // Get temporary directory to save the recording
     final directory = await getTemporaryDirectory();
     final uuid = const Uuid().v4();
-    final path = '${directory.path}/$uuid.m4a';
+    final path = '${directory.path}/$uuid.wav';
 
     // Configure recording options
     await _audioRecorder.start(
       RecordConfig(
-        encoder: AudioEncoder.aacLc,
+        encoder: AudioEncoder.wav,
         bitRate: 128000,
-        sampleRate: 44100,
+        sampleRate: 16000,
+        numChannels: 1,
       ),
       path: path,
     );
