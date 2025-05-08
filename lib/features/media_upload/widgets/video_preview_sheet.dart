@@ -26,22 +26,59 @@ class VideoPreviewSheet extends ConsumerStatefulWidget {
 class _VideoPreviewSheetState extends ConsumerState<VideoPreviewSheet> {
   final TextEditingController _titleController = TextEditingController();
   bool _isSaving = false;
-  late Duration _duration;
+  late VideoPlayerController _videoPlayerController;
+  bool _isVideoInitialized = false;
+  Duration _duration = Duration.zero;
+  bool _isPlaying = false;
 
   @override
   void initState() {
     super.initState();
     _titleController.text =
         "Video ${DateTime.now().toString().substring(0, 16)}";
-    VideoPlayerController videoPlayerController = VideoPlayerController.file(
+    _initializeVideoPlayer();
+  }
+
+  Future<void> _initializeVideoPlayer() async {
+    _videoPlayerController = VideoPlayerController.file(
       File(widget.videoFile.path),
     );
-    _duration = videoPlayerController.value.duration;
+
+    // Add listener to update playback state
+    _videoPlayerController.addListener(() {
+      if (mounted) {
+        final isPlaying = _videoPlayerController.value.isPlaying;
+        if (_isPlaying != isPlaying) {
+          setState(() {
+            _isPlaying = isPlaying;
+          });
+        }
+      }
+    });
+
+    // Initialize the controller
+    await _videoPlayerController.initialize();
+
+    // Get video duration after initialization
+    if (mounted) {
+      setState(() {
+        _isVideoInitialized = true;
+        _duration = _videoPlayerController.value.duration;
+      });
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return "$minutes:$seconds";
   }
 
   @override
   void dispose() {
     _titleController.dispose();
+    _videoPlayerController.dispose();
     super.dispose();
   }
 
@@ -91,7 +128,7 @@ class _VideoPreviewSheetState extends ConsumerState<VideoPreviewSheet> {
             videoUrl: videoUrl,
             title: title,
             description: null,
-            duration: _duration, // This should be the actual video duration
+            duration: _duration, // The actual video duration
             timestamp: DateTime(
               widget.date.year,
               widget.date.month,
@@ -155,22 +192,109 @@ class _VideoPreviewSheetState extends ConsumerState<VideoPreviewSheet> {
           ),
           const SizedBox(height: 20),
 
-          // Video thumbnail placeholder
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
+          // Video preview with playback controls
+          if (_isVideoInitialized) ...[
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                // Video player
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: AspectRatio(
+                    aspectRatio: _videoPlayerController.value.aspectRatio,
+                    child: VideoPlayer(_videoPlayerController),
+                  ),
+                ),
+
+                // Play/Pause button overlay
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (_videoPlayerController.value.isPlaying) {
+                        _videoPlayerController.pause();
+                      } else {
+                        _videoPlayerController.play();
+                      }
+                    });
+                  },
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: Colors.black38,
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                    child: Icon(
+                      _videoPlayerController.value.isPlaying
+                          ? Icons.pause
+                          : Icons.play_arrow,
+                      color: Colors.white,
+                      size: 32,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // Video progress and duration
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                // Current position
+                ValueListenableBuilder(
+                  valueListenable: _videoPlayerController,
+                  builder: (context, VideoPlayerValue value, child) {
+                    return Text(
+                      _formatDuration(value.position),
+                      style: const TextStyle(fontSize: 12),
+                    );
+                  },
+                ),
+
+                // Progress bar
+                Expanded(
+                  child: ValueListenableBuilder(
+                    valueListenable: _videoPlayerController,
+                    builder: (context, VideoPlayerValue value, child) {
+                      return Slider(
+                        value: value.position.inMilliseconds.toDouble(),
+                        min: 0,
+                        max: value.duration.inMilliseconds.toDouble(),
+                        activeColor: primaryColor,
+                        inactiveColor: Colors.grey[300],
+                        onChanged: (newPosition) {
+                          _videoPlayerController.seekTo(
+                            Duration(milliseconds: newPosition.toInt()),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+
+                // Total duration
+                Text(
+                  _formatDuration(_duration),
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ] else ...[
+            // Loading indicator while video initializes
+            Container(
               height: 200,
               width: double.infinity,
-              color: Colors.black87,
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: const Center(
-                child: Icon(
-                  Icons.play_circle_fill,
-                  color: Colors.white,
-                  size: 48,
-                ),
+                child: CircularProgressIndicator(color: Colors.white),
               ),
             ),
-          ),
+            const SizedBox(height: 32),
+          ],
+
           const SizedBox(height: 20),
 
           // Title field
