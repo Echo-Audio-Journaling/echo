@@ -62,7 +62,7 @@ class SpeechService {
   Future<ServiceAccount> _getServiceAccount() async {
     try {
       final String credentialsJson = await rootBundle.loadString(
-        'assets/credentials/service-account.json',
+        'assets/credentials/cloud-speech-credentials.json',
       );
       return ServiceAccount.fromString(credentialsJson);
     } catch (e) {

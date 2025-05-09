@@ -79,7 +79,6 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
   }
 
   // Add a new audio log entry
-  // Add a new audio log entry
   Future<String?> addAudioLogEntry({
     required String audioUrl,
     required String transcription,

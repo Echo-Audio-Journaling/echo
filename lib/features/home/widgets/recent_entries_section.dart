@@ -39,7 +39,6 @@ class RecentEntriesSection extends StatelessWidget {
       category: 'goals',
       onTap: () {},
     ),
-    // Additional entries (will show "more entries" indicator)
     EntryData(
       id: '6',
       title: 'Book notes: "Atomic Habits" chapter 4',
@@ -222,97 +221,3 @@ class EntryData {
     }
   }
 }
-
-// Example usage:
-/*
-// Sample data for demonstration
-final List<EntryData> sampleEntries = [
-  EntryData(
-    id: '1',
-    title: 'Morning reflection: Starting the day with gratitude',
-    dateTime: DateTime.now().subtract(const Duration(hours: 3)),
-    category: 'personal',
-    onTap: () {
-      // Handle entry tap
-      print('Tapped on entry 1');
-    },
-  ),
-  EntryData(
-    id: '2',
-    title: 'Project meeting notes: New feature planning',
-    dateTime: DateTime.now().subtract(const Duration(hours: 6)),
-    category: 'work',
-    onTap: () {
-      // Handle entry tap
-      print('Tapped on entry 2');
-    },
-  ),
-  EntryData(
-    id: '3',
-    title: 'Workout log: 5k run and strength training',
-    dateTime: DateTime.now().subtract(const Duration(days: 1)),
-    category: 'health',
-    onTap: () {
-      // Handle entry tap
-      print('Tapped on entry 3');
-    },
-  ),
-  EntryData(
-    id: '4',
-    title: 'App design ideas for the journal feature',
-    dateTime: DateTime.now().subtract(const Duration(days: 2)),
-    category: 'ideas',
-    onTap: () {
-      // Handle entry tap
-      print('Tapped on entry 4');
-    },
-  ),
-  EntryData(
-    id: '5',
-    title: 'Monthly goals: Focus areas for May',
-    dateTime: DateTime.now().subtract(const Duration(days: 3)),
-    category: 'goals',
-    onTap: () {
-      // Handle entry tap
-      print('Tapped on entry 5');
-    },
-  ),
-  // Additional entries (will show "more entries" indicator)
-  EntryData(
-    id: '6',
-    title: 'Book notes: "Atomic Habits" chapter 4',
-    dateTime: DateTime.now().subtract(const Duration(days: 4)),
-    category: 'personal',
-    onTap: () {},
-  ),
-  EntryData(
-    id: '7',
-    title: 'Weekly review: What went well and lessons learned',
-    dateTime: DateTime.now().subtract(const Duration(days: 5)),
-    category: 'personal',
-    onTap: () {},
-  ),
-];
-
-// Using the RecentEntriesSection in a widget
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    appBar: AppBar(title: Text('My Journal')),
-    body: SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: RecentEntriesSection(
-          title: 'Recent Journal Entries',
-          entries: sampleEntries,
-          accentColor: const Color(0xFF6E61FD),
-          onViewAllPressed: () {
-            // Navigate to all entries screen
-            print('View all entries pressed');
-          },
-        ),
-      ),
-    ),
-  );
-}
-*/
