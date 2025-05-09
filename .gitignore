@@ -46,4 +46,4 @@ app.*.map.json
 
 # Environment variables
 *.env
-# /assets/credentials
+/assets/credentials
