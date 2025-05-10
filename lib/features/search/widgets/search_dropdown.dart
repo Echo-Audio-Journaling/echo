@@ -44,10 +44,13 @@ class SearchDropdown extends ConsumerWidget {
         shadowColor: Colors.transparent,
         child: SingleChildScrollView(
           child: Container(
-            color: Colors.white,
             margin: const EdgeInsets.only(right: 50),
             padding: const EdgeInsets.all(10),
-            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            // alignment: Alignment.center,
             constraints: BoxConstraints(
               maxHeight: 250, // Max height for scrollable area
               maxWidth:
@@ -91,50 +94,51 @@ class SearchDropdown extends ConsumerWidget {
                       ),
                     ),
 
-                    // Divider
-                    Divider(height: 1, color: Colors.grey[200]),
-
                     // Results list (scrollable)
-                    Flexible(
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.only(
-                          bottomLeft: Radius.circular(12),
-                          bottomRight: Radius.circular(12),
-                        ),
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          padding: EdgeInsets.zero,
-                          itemCount: entries.length + (hasMoreResults ? 1 : 0),
-                          separatorBuilder:
-                              (context, index) => Divider(
-                                height: 1,
-                                color: Colors.grey[200],
-                                indent: 16,
-                                endIndent: 16,
-                              ),
-                          itemBuilder: (context, index) {
-                            // If we're at the last position and have more results, show the "View all" button
-                            if (hasMoreResults && index == entries.length) {
-                              return _buildViewAllButton(ref);
-                            }
-                            final id = entries[index].id;
+                    Center(
+                      child: Flexible(
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.only(
+                            bottomLeft: Radius.circular(12),
+                            bottomRight: Radius.circular(12),
+                          ),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            padding: EdgeInsets.zero,
+                            itemCount:
+                                entries.length + (hasMoreResults ? 1 : 0),
+                            separatorBuilder:
+                                (context, index) => Divider(
+                                  height: 1,
+                                  color: Colors.grey[200],
+                                  indent: 16,
+                                  endIndent: 16,
+                                ),
+                            itemBuilder: (context, index) {
+                              // If we're at the last position and have more results, show the "View all" button
+                              if (hasMoreResults && index == entries.length) {
+                                return _buildViewAllButton(ref);
+                              }
+                              final id = entries[index].id;
 
-                            // Use the SearchPreviewCard with compact mode enabled
-                            return SearchPreviewCard(
-                              entry: entries[index],
-                              isCompact: true, // Use compact mode for dropdown
-                              onTap: () {
-                                // Clear search query when navigating
-                                ref.read(searchQueryProvider.notifier).state =
-                                    '';
-                                searchController.clear();
+                              // Use the SearchPreviewCard with compact mode enabled
+                              return SearchPreviewCard(
+                                entry: entries[index],
+                                isCompact:
+                                    true, // Use compact mode for dropdown
+                                onTap: () {
+                                  // Clear search query when navigating
+                                  ref.read(searchQueryProvider.notifier).state =
+                                      '';
+                                  searchController.clear();
 
-                                // Navigate to audio detail and clear search focus
-                                ref.read(routerProvider).go('/audio/$id');
-                                searchFocusNode.unfocus();
-                              },
-                            );
-                          },
+                                  // Navigate to audio detail and clear search focus
+                                  ref.read(routerProvider).go('/audio/$id');
+                                  searchFocusNode.unfocus();
+                                },
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),

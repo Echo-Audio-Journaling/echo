@@ -39,7 +39,7 @@ class AudioLogEntry extends LogEntry {
   final String transcription;
   final Duration duration;
   bool isPlaying;
-  List<String> tags; // New property for tags
+  List<String> tags; // Property for tags
 
   AudioLogEntry({
     required super.id,
@@ -53,6 +53,15 @@ class AudioLogEntry extends LogEntry {
   }) : super(type: LogEntryType.audio);
 
   factory AudioLogEntry.fromJson(Map<String, dynamic> json) {
+    // Handle different ways tags might be stored in Firestore
+    List<String> parseTags(dynamic tagsData) {
+      if (tagsData == null) return [];
+      if (tagsData is List) {
+        return tagsData.map((tag) => tag.toString()).toList();
+      }
+      return [];
+    }
+
     return AudioLogEntry(
       id: json['id'],
       timestamp: (json['timestamp'] as Timestamp).toDate(),
@@ -60,7 +69,7 @@ class AudioLogEntry extends LogEntry {
       audioUrl: json['audioUrl'],
       transcription: json['transcription'],
       duration: Duration(milliseconds: json['durationMs'] ?? 0),
-      tags: List<String>.from(json['tags'] ?? []), // Parse tags from json
+      tags: parseTags(json['tags']), // Parse tags from json
     );
   }
 
@@ -90,6 +99,7 @@ class AudioLogEntry extends LogEntry {
 class ImageLogEntry extends LogEntry {
   final String imageUrl;
   final String? description;
+  final List<String> tags; // Added tags property
 
   ImageLogEntry({
     required super.id,
@@ -97,15 +107,26 @@ class ImageLogEntry extends LogEntry {
     required super.title,
     required this.imageUrl,
     this.description,
+    this.tags = const [], // Default to empty list
   }) : super(type: LogEntryType.image);
 
   factory ImageLogEntry.fromJson(Map<String, dynamic> json) {
+    // Handle different ways tags might be stored in Firestore
+    List<String> parseTags(dynamic tagsData) {
+      if (tagsData == null) return [];
+      if (tagsData is List) {
+        return tagsData.map((tag) => tag.toString()).toList();
+      }
+      return [];
+    }
+
     return ImageLogEntry(
       id: json['id'],
       timestamp: (json['timestamp'] as Timestamp).toDate(),
       title: json['title'],
       imageUrl: json['imageUrl'],
       description: json['description'],
+      tags: parseTags(json['tags']), // Parse tags from json
     );
   }
 
@@ -118,6 +139,7 @@ class ImageLogEntry extends LogEntry {
       'title': title,
       'imageUrl': imageUrl,
       'description': description,
+      'tags': tags, // Add tags to json
     };
   }
 }
@@ -127,6 +149,7 @@ class VideoLogEntry extends LogEntry {
   final String? description;
   final Duration duration;
   final String? thumbnailUrl;
+  final List<String> tags; // Added tags property
 
   VideoLogEntry({
     required super.id,
@@ -136,9 +159,19 @@ class VideoLogEntry extends LogEntry {
     required this.duration,
     this.description,
     this.thumbnailUrl,
+    this.tags = const [], // Default to empty list
   }) : super(type: LogEntryType.video);
 
   factory VideoLogEntry.fromJson(Map<String, dynamic> json) {
+    // Handle different ways tags might be stored in Firestore
+    List<String> parseTags(dynamic tagsData) {
+      if (tagsData == null) return [];
+      if (tagsData is List) {
+        return tagsData.map((tag) => tag.toString()).toList();
+      }
+      return [];
+    }
+
     return VideoLogEntry(
       id: json['id'],
       timestamp: (json['timestamp'] as Timestamp).toDate(),
@@ -147,6 +180,7 @@ class VideoLogEntry extends LogEntry {
       duration: Duration(milliseconds: json['durationMs'] ?? 0),
       description: json['description'],
       thumbnailUrl: json['thumbnailUrl'],
+      tags: parseTags(json['tags']), // Parse tags from json
     );
   }
 
@@ -161,6 +195,7 @@ class VideoLogEntry extends LogEntry {
       'durationMs': duration.inMilliseconds,
       'description': description,
       'thumbnailUrl': thumbnailUrl,
+      'tags': tags, // Add tags to json
     };
   }
 }

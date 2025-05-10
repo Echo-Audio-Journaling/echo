@@ -83,26 +83,63 @@ class SearchResultsNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
               .orderBy('timestamp', descending: true) // Get newest first
               .get();
 
-      // Convert query results to LogEntry objects and filter by title
-      final searchTermLower = _searchQuery.toLowerCase();
-      final logEntries =
-          querySnapshot.docs
-              .map((doc) {
-                final data = doc.data();
-                data['id'] = doc.id; // Add document ID to the data
-                return LogEntry.fromJson(data);
-              })
-              .where(
-                (entry) => entry.title.toLowerCase().contains(searchTermLower),
-              )
-              .toList();
+      // Convert query results to LogEntry objects
+      final allLogEntries =
+          querySnapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id; // Add document ID to the data
+            return LogEntry.fromJson(data);
+          }).toList();
 
-      state = AsyncValue.data(logEntries);
+      // Filter by title or tags
+      final searchTerms = _searchQuery.toLowerCase().split(' ');
+      final matchingLogEntries =
+          allLogEntries.where((entry) {
+            // For each search term, check if it matches either title or any tag
+            for (final term in searchTerms) {
+              if (term.isEmpty) continue;
+
+              // Match by title
+              final titleMatches = entry.title.toLowerCase().contains(term);
+              if (titleMatches) return true;
+
+              // Match by tags
+              final hasTags = _entryHasMatchingTags(entry, term);
+              if (hasTags) return true;
+            }
+
+            return false; // No matches found for any search term
+          }).toList();
+
+      state = AsyncValue.data(matchingLogEntries);
     } catch (error, stackTrace) {
       if (kDebugMode) {
         print('Error searching logs: $error');
       }
       state = AsyncValue.error(error, stackTrace);
     }
+  }
+
+  // Helper method to check if entry has any matching tags
+  bool _entryHasMatchingTags(LogEntry entry, String searchTerm) {
+    List<String>? tags;
+
+    // Extract tags based on entry type
+    if (entry is AudioLogEntry) {
+      tags = entry.tags;
+    } else if (entry is ImageLogEntry) {
+      tags = entry.tags;
+    } else if (entry is VideoLogEntry) {
+      tags = entry.tags;
+    } else {
+      tags = null;
+    }
+
+    // Check if any tag contains the search term
+    if (tags != null && tags.isNotEmpty) {
+      return tags.any((tag) => tag.toLowerCase().contains(searchTerm));
+    }
+
+    return false;
   }
 }
