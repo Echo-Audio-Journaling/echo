@@ -143,7 +143,7 @@ class _DateDetailPageState extends ConsumerState<DateDetailPage> {
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
-                ref.refresh(logEntriesProvider);
+                final _ = ref.refresh(logEntriesProvider);
                 ref
                     .read(logEntriesProvider.notifier)
                     .fetchLogEntriesForDate(widget.date);

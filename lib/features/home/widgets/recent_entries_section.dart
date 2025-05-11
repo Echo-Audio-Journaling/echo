@@ -9,7 +9,7 @@ class RecentEntriesSection extends ConsumerWidget {
   final String title;
   final Color accentColor;
 
-  RecentEntriesSection({
+  const RecentEntriesSection({
     super.key,
     this.title = "Recent Entries",
     this.accentColor = const Color(0xFF6E61FD),
@@ -19,10 +19,10 @@ class RecentEntriesSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
-    
+
     // Get the current user from your auth provider
     final authState = ref.watch(authStateProvider);
-    
+
     return authState.when(
       data: (user) {
         // If user is not logged in, show login message
@@ -37,10 +37,10 @@ class RecentEntriesSection extends ConsumerWidget {
             ),
           );
         }
-        
+
         // Use the user's ID from Google Sign-In
         final userId = user.id;
-        
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -82,10 +82,7 @@ class RecentEntriesSection extends ConsumerWidget {
                 }
 
                 final docs = snapshot.data ?? [];
-                
-                // Print debug info
-                print('Found ${docs.length} audio log documents for user $userId');
-                
+
                 if (docs.isEmpty) {
                   return Center(
                     child: Padding(
@@ -96,26 +93,29 @@ class RecentEntriesSection extends ConsumerWidget {
                           Icon(
                             Icons.audio_file,
                             size: 48,
-                            color: isDarkMode
-                                ? Colors.grey.shade700
-                                : Colors.grey.shade400,
+                            color:
+                                isDarkMode
+                                    ? Colors.grey.shade700
+                                    : Colors.grey.shade400,
                           ),
                           const SizedBox(height: 16),
                           Text(
                             'No recent audio entries yet',
                             style: theme.textTheme.titleMedium?.copyWith(
-                              color: isDarkMode
-                                  ? Colors.grey.shade400
-                                  : Colors.grey.shade600,
+                              color:
+                                  isDarkMode
+                                      ? Colors.grey.shade400
+                                      : Colors.grey.shade600,
                             ),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Your recent audio recordings will appear here',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: isDarkMode
-                                  ? Colors.grey.shade500
-                                  : Colors.grey.shade700,
+                              color:
+                                  isDarkMode
+                                      ? Colors.grey.shade500
+                                      : Colors.grey.shade700,
                             ),
                             textAlign: TextAlign.center,
                           ),
@@ -131,17 +131,18 @@ class RecentEntriesSection extends ConsumerWidget {
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
                     final doc = docs[index];
-                    
+
                     try {
                       // Extract data from document
                       final data = doc.data() as Map<String, dynamic>;
-                      
+
                       // Extract title with fallbacks
-                      final title = data['title'] ?? 
-                                   data['fileName'] ?? 
-                                   data['content'] ?? 
-                                   'Audio Recording';
-                      
+                      final title =
+                          data['title'] ??
+                          data['fileName'] ??
+                          data['content'] ??
+                          'Audio Recording';
+
                       // Extract timestamp with fallbacks
                       DateTime dateTime;
                       try {
@@ -158,7 +159,7 @@ class RecentEntriesSection extends ConsumerWidget {
                       } catch (_) {
                         dateTime = DateTime.now();
                       }
-                      
+
                       // Create EntryData object for formatting
                       final entryData = EntryData(
                         id: doc.id,
@@ -176,7 +177,6 @@ class RecentEntriesSection extends ConsumerWidget {
                         accentColor: const Color(0xFFF48F5B),
                       );
                     } catch (e) {
-                      print('Error processing document ${doc.id}: $e');
                       return const SizedBox.shrink();
                     }
                   },
@@ -187,80 +187,83 @@ class RecentEntriesSection extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stackTrace) => Center(
-        child: Text(
-          'Error loading user: $error',
-          style: TextStyle(color: Colors.red),
-        ),
-      ),
+      error:
+          (error, stackTrace) => Center(
+            child: Text(
+              'Error loading user: $error',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
     );
   }
-  
+
   // Helper method to fetch and filter audio logs
   Future<List<DocumentSnapshot>> _getAudioLogs(String userId) async {
     try {
       // Get all logs without complex queries
-      final QuerySnapshot snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userId)
-          .collection('logs')
-          .get();
-      
+      final QuerySnapshot snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .collection('logs')
+              .get();
+
       // Get all documents
       final allDocs = snapshot.docs;
-      
+
       // Filter for audio files client-side
-      final audioLogs = allDocs.where((doc) {
-        try {
-          final data = doc.data() as Map<String, dynamic>;
-          
-          // Check various fields that might indicate an audio file
-          final fileType = data['fileType'] ?? data['type'] ?? '';
-          final fileName = (data['fileName'] ?? '').toString().toLowerCase();
-          final mimeType = (data['mimeType'] ?? '').toString().toLowerCase();
-          
-          return fileType == 'audio' || 
-                 fileName.contains('.mp3') || 
-                 fileName.contains('.wav') || 
-                 fileName.contains('.m4a') ||
-                 mimeType.contains('audio');
-        } catch (e) {
-          print('Error filtering document: $e');
-          return false;
-        }
-      }).toList();
-      
+      final audioLogs =
+          allDocs.where((doc) {
+            try {
+              final data = doc.data() as Map<String, dynamic>;
+
+              // Check various fields that might indicate an audio file
+              final fileType = data['fileType'] ?? data['type'] ?? '';
+              final fileName =
+                  (data['fileName'] ?? '').toString().toLowerCase();
+              final mimeType =
+                  (data['mimeType'] ?? '').toString().toLowerCase();
+
+              return fileType == 'audio' ||
+                  fileName.contains('.mp3') ||
+                  fileName.contains('.wav') ||
+                  fileName.contains('.m4a') ||
+                  mimeType.contains('audio');
+            } catch (e) {
+              return false;
+            }
+          }).toList();
+
       // Sort by timestamp (newest first)
       audioLogs.sort((a, b) {
         try {
           final aData = a.data() as Map<String, dynamic>;
           final bData = b.data() as Map<String, dynamic>;
-          
+
           Timestamp? aTimestamp;
           Timestamp? bTimestamp;
-          
+
           if (aData['timestamp'] is Timestamp) {
             aTimestamp = aData['timestamp'] as Timestamp;
           }
-          
+
           if (bData['timestamp'] is Timestamp) {
             bTimestamp = bData['timestamp'] as Timestamp;
           }
-          
+
           if (aTimestamp == null || bTimestamp == null) {
             return 0;
           }
-          
+
           return bTimestamp.compareTo(aTimestamp); // Descending order
         } catch (e) {
           return 0;
         }
       });
-      
+
       // Limit to 5 entries
       return audioLogs.length > 5 ? audioLogs.sublist(0, 5) : audioLogs;
     } catch (e) {
-      print('Error in _getAudioLogs: $e');
       return [];
     }
   }
