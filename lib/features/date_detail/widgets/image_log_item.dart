@@ -240,7 +240,7 @@ class ImageLogItem extends ConsumerWidget {
                   Navigator.of(context).pop();
                   ref
                       .read(logEntriesProvider.notifier)
-                      .deleteLogEntry(entry.id);
+                      .deleteLogEntry(entry.id, entry.imageUrl);
                 },
                 child: const Text(
                   'Delete',

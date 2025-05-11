@@ -196,7 +196,9 @@ class _AudioDetailWidgetState extends ConsumerState<AudioDetailWidget> {
 
   void _deleteEntry() {
     // Delete entry using provider
-    ref.read(logEntriesProvider.notifier).deleteLogEntry(widget.entry.id);
+    ref
+        .read(logEntriesProvider.notifier)
+        .deleteLogEntry(widget.entry.id, widget.entry.audioUrl);
 
     // Navigate back after deletion
     Navigator.pop(context);

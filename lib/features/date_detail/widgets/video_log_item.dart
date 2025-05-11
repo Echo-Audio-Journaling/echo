@@ -367,7 +367,7 @@ class _VideoLogItemState extends ConsumerState<VideoLogItem> {
                   Navigator.of(context).pop();
                   ref
                       .read(logEntriesProvider.notifier)
-                      .deleteLogEntry(widget.entry.id);
+                      .deleteLogEntry(widget.entry.id, widget.entry.videoUrl);
                 },
                 child: const Text(
                   'Delete',

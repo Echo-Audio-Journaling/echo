@@ -418,7 +418,7 @@ class _AudioLogItemState extends ConsumerState<AudioLogItem> {
                   Navigator.of(context).pop();
                   ref
                       .read(logEntriesProvider.notifier)
-                      .deleteLogEntry(widget.entry.id);
+                      .deleteLogEntry(widget.entry.id, widget.entry.audioUrl);
                 },
                 child: const Text(
                   'Delete',

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:echo/features/auth/provider/auth_provider.dart';
+import 'package:echo/features/media_upload/services/storage_service.dart';
 import 'package:echo/shared/models/log_entry.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,14 +12,17 @@ final logEntriesProvider =
       ref,
     ) {
       final authState = ref.watch(authStateProvider);
-      return LogEntriesNotifier(authState.valueOrNull?.id);
+      final storageService = ref.read(storageServiceProvider);
+      return LogEntriesNotifier(storageService, authState.valueOrNull?.id);
     });
 
 class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final StorageService _storageService;
   final String? _userId;
 
-  LogEntriesNotifier(this._userId) : super(const AsyncValue.loading());
+  LogEntriesNotifier(this._storageService, this._userId)
+    : super(const AsyncValue.loading());
 
   Future<void> fetchLogEntriesForDate(DateTime date) async {
     if (_userId == null) {
@@ -260,10 +264,18 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
   }
 
   // Delete log entry
-  Future<void> deleteLogEntry(String entryId) async {
+  Future<void> deleteLogEntry(String entryId, String fileUrl) async {
     if (_userId == null) return;
 
     try {
+      // Delete the file from storage
+      final filePathToDelete = await _storageService.getReferencePathFromUrl(
+        fileUrl,
+      );
+      if (filePathToDelete != null) {
+        await _storageService.deleteFile(filePathToDelete);
+      }
+
       // Delete from Firestore
       await _firestore
           .collection('users')
@@ -278,7 +290,7 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
       });
     } catch (error) {
       if (kDebugMode) {
-        print('Error deleting entry: $error');
+        debugPrint('Error deleting entry: $error');
       }
     }
   }
