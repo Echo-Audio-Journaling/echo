@@ -64,11 +64,19 @@ class RecentEntriesSection extends ConsumerWidget {
 
             const SizedBox(height: 8),
 
-            // Use FutureBuilder instead of StreamBuilder for simpler query
-            FutureBuilder<List<DocumentSnapshot>>(
-              future: _getAudioLogs(userId),
+            // Use StreamBuilder for real-time updates
+            StreamBuilder<QuerySnapshot>(
+              // Just use a simple query without complex filters
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(userId)
+                  .collection('logs')
+                  // We can sort by timestamp safely
+                  .orderBy('timestamp', descending: true)
+                  .limit(20)  // Fetch more than needed for filtering
+                  .snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
@@ -81,7 +89,29 @@ class RecentEntriesSection extends ConsumerWidget {
                   );
                 }
 
-                final docs = snapshot.data ?? [];
+                final allDocs = snapshot.data?.docs ?? [];
+                
+                // Filter for audio files client-side
+                final audioDocs = allDocs.where((doc) {
+                  try {
+                    final data = doc.data() as Map<String, dynamic>;
+                    
+                    final fileType = data['fileType'] ?? data['type'] ?? '';
+                    final fileName = (data['fileName'] ?? '').toString().toLowerCase();
+                    final mimeType = (data['mimeType'] ?? '').toString().toLowerCase();
+                    
+                    return fileType == 'audio' ||
+                           fileName.contains('.mp3') ||
+                           fileName.contains('.wav') ||
+                           fileName.contains('.m4a') ||
+                           mimeType.contains('audio');
+                  } catch (e) {
+                    return false;
+                  }
+                }).toList();
+                
+                // Limit to 5 audio entries
+                final docs = audioDocs.length > 5 ? audioDocs.sublist(0, 5) : audioDocs;
 
                 if (docs.isEmpty) {
                   return Center(
@@ -195,77 +225,6 @@ class RecentEntriesSection extends ConsumerWidget {
             ),
           ),
     );
-  }
-
-  // Helper method to fetch and filter audio logs
-  Future<List<DocumentSnapshot>> _getAudioLogs(String userId) async {
-    try {
-      // Get all logs without complex queries
-      final QuerySnapshot snapshot =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .collection('logs')
-              .get();
-
-      // Get all documents
-      final allDocs = snapshot.docs;
-
-      // Filter for audio files client-side
-      final audioLogs =
-          allDocs.where((doc) {
-            try {
-              final data = doc.data() as Map<String, dynamic>;
-
-              // Check various fields that might indicate an audio file
-              final fileType = data['fileType'] ?? data['type'] ?? '';
-              final fileName =
-                  (data['fileName'] ?? '').toString().toLowerCase();
-              final mimeType =
-                  (data['mimeType'] ?? '').toString().toLowerCase();
-
-              return fileType == 'audio' ||
-                  fileName.contains('.mp3') ||
-                  fileName.contains('.wav') ||
-                  fileName.contains('.m4a') ||
-                  mimeType.contains('audio');
-            } catch (e) {
-              return false;
-            }
-          }).toList();
-
-      // Sort by timestamp (newest first)
-      audioLogs.sort((a, b) {
-        try {
-          final aData = a.data() as Map<String, dynamic>;
-          final bData = b.data() as Map<String, dynamic>;
-
-          Timestamp? aTimestamp;
-          Timestamp? bTimestamp;
-
-          if (aData['timestamp'] is Timestamp) {
-            aTimestamp = aData['timestamp'] as Timestamp;
-          }
-
-          if (bData['timestamp'] is Timestamp) {
-            bTimestamp = bData['timestamp'] as Timestamp;
-          }
-
-          if (aTimestamp == null || bTimestamp == null) {
-            return 0;
-          }
-
-          return bTimestamp.compareTo(aTimestamp); // Descending order
-        } catch (e) {
-          return 0;
-        }
-      });
-
-      // Limit to 5 entries
-      return audioLogs.length > 5 ? audioLogs.sublist(0, 5) : audioLogs;
-    } catch (e) {
-      return [];
-    }
   }
 }
 
