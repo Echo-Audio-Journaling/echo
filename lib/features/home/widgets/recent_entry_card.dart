@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 class RecentEntryCard extends StatelessWidget {
   final String title;
   final String date;
   final String time;
-  final VoidCallback? onTap;
+  final String entryId; // Add this parameter to store the entry ID
   final Color accentColor;
 
   const RecentEntryCard({
@@ -12,7 +13,7 @@ class RecentEntryCard extends StatelessWidget {
     required this.title,
     required this.date,
     required this.time,
-    this.onTap,
+    required this.entryId, // Make entryId required
     this.accentColor = const Color(0xFF6E61FD),
   });
 
@@ -22,7 +23,10 @@ class RecentEntryCard extends StatelessWidget {
     final isDarkMode = theme.brightness == Brightness.dark;
 
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        // Navigate to the audio detail screen with the entry ID
+        context.go('/audio/$entryId');
+      },
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
         padding: const EdgeInsets.all(12),
@@ -115,10 +119,7 @@ class RecentEntryCard extends StatelessWidget {
                 ],
               ),
             ),
-
-            // Chevron indicator
-            if (onTap != null)
-              Icon(Icons.chevron_right, color: Colors.grey, size: 16),
+            // Removed the chevron icon as requested
           ],
         ),
       ),

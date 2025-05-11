@@ -1,5 +1,6 @@
-import 'package:echo/features/detail/provider/log_entries_provider.dart';
-import 'package:echo/features/detail/widgets/edit_title_dialog.dart';
+import 'package:echo/app/router.dart';
+import 'package:echo/features/date_detail/provider/log_entries_provider.dart';
+import 'package:echo/features/date_detail/widgets/edit_title_dialog.dart';
 import 'package:echo/shared/models/log_entry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -129,27 +130,7 @@ class _AudioLogItemState extends ConsumerState<AudioLogItem> {
   }
 
   void _viewFullTranscription() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder:
-          (context) => DraggableScrollableSheet(
-            initialChildSize: 0.6,
-            minChildSize: 0.4,
-            maxChildSize: 0.95,
-            expand: false,
-            builder:
-                (context, scrollController) => _TranscriptionView(
-                  title: widget.entry.title,
-                  transcription: widget.entry.transcription,
-                  timestamp: widget.entry.timestamp,
-                  scrollController: scrollController,
-                ),
-          ),
-    );
+    ref.read(routerProvider).go('/audio/${widget.entry.id}');
   }
 
   @override
@@ -164,6 +145,7 @@ class _AudioLogItemState extends ConsumerState<AudioLogItem> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildHeader(),
+            if (widget.entry.tags.isNotEmpty) _buildTags(),
             const SizedBox(height: 12),
             _buildTranscriptionPreview(),
             const SizedBox(height: 16),
@@ -243,6 +225,42 @@ class _AudioLogItemState extends ConsumerState<AudioLogItem> {
               ],
         ),
       ],
+    );
+  }
+
+  // Add this new method to build the tags section
+  Widget _buildTags() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: SizedBox(
+        height: 30,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: widget.entry.tags.length,
+          separatorBuilder: (context, index) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Theme.of(context).primaryColor,
+                  width: 1.5,
+                ),
+              ),
+              child: Text(
+                widget.entry.tags[index],
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context).primaryColor,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -400,7 +418,7 @@ class _AudioLogItemState extends ConsumerState<AudioLogItem> {
                   Navigator.of(context).pop();
                   ref
                       .read(logEntriesProvider.notifier)
-                      .deleteLogEntry(widget.entry.id);
+                      .deleteLogEntry(widget.entry.id, widget.entry.audioUrl);
                 },
                 child: const Text(
                   'Delete',
@@ -409,72 +427,6 @@ class _AudioLogItemState extends ConsumerState<AudioLogItem> {
               ),
             ],
           ),
-    );
-  }
-}
-
-class _TranscriptionView extends StatelessWidget {
-  final String title;
-  final String transcription;
-  final DateTime timestamp;
-  final ScrollController scrollController;
-
-  const _TranscriptionView({
-    required this.title,
-    required this.transcription,
-    required this.timestamp,
-    required this.scrollController,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Drag handle
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Header
-          Text(
-            title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          Text(
-            DateFormat('MMMM d, yyyy • h:mm a').format(timestamp),
-            style: TextStyle(color: Colors.grey[600], fontSize: 14),
-          ),
-          const SizedBox(height: 20),
-          const Divider(),
-          // Transcription content
-          Expanded(
-            child: ListView(
-              controller: scrollController,
-              padding: const EdgeInsets.only(top: 12),
-              children: [
-                Text(
-                  transcription,
-                  style: const TextStyle(fontSize: 16, height: 1.5),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

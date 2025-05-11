@@ -3,8 +3,10 @@ import 'package:echo/features/auth/provider/profile_provider.dart';
 import 'package:echo/features/home/widgets/journal_calendar.dart';
 import 'package:echo/features/home/widgets/random_prompts.dart';
 import 'package:echo/features/home/widgets/recent_entries_section.dart';
+import 'package:echo/features/media_upload/widgets/create_content_action_bar.dart';
+import 'package:echo/features/search/provider/search_provider.dart';
+import 'package:echo/features/search/widgets/search_dropdown.dart';
 import 'package:echo/shared/models/user_profile.dart';
-import 'package:echo/shared/widgets/create_content_action_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -17,6 +19,43 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  // Search related controllers
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  final LayerLink _layerLink = LayerLink();
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Listen for focus changes to show/hide dropdown
+    _searchFocusNode.addListener(_onSearchFocusChange);
+
+    // Clear search query when screen initializes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(searchQueryProvider.notifier).state = '';
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.removeListener(_onSearchFocusChange);
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  // Handle focus changes
+  void _onSearchFocusChange() {
+    if (!_searchFocusNode.hasFocus) {
+      // If focus is lost and search query is empty, make sure state is also empty
+      if (_searchController.text.isEmpty) {
+        ref.read(searchQueryProvider.notifier).state = '';
+      }
+    }
+    setState(() {}); // Refresh UI to show/hide dropdown
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -29,208 +68,259 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFF6E61FD),
         // Use a Stack to position the content and the action bar
-        body: Stack(
-          children: [
-            // Main Content
-            Column(
-              children: [
-                // First Section
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 16,
-                  ),
-                  child: Column(
-                    children: [
-                      // App Logo and Title
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.waves_rounded,
-                            size: 32,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            'Echo',
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.5,
+        body: GestureDetector(
+          // Close search dropdown when tapping elsewhere
+          onTap: () {
+            if (_searchFocusNode.hasFocus) {
+              _searchFocusNode.unfocus();
+            }
+          },
+          behavior: HitTestBehavior.translucent,
+          child: Stack(
+            children: [
+              // Main Content
+              Column(
+                children: [
+                  // First Section
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                    child: Column(
+                      children: [
+                        // App Logo and Title
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.waves_rounded,
+                              size: 32,
                               color: Colors.white,
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Search Bar
-                      SizedBox(
-                        height: 50,
-                        child: TextField(
-                          decoration: InputDecoration(
-                            hintText: 'Search memories...',
-                            prefixIcon: Icon(
-                              Icons.search,
-                              color: const Color(0xFF6E61FD),
-                            ),
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                Icons.tune_rounded,
-                                color: const Color(0xFF6E61FD),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Echo',
+                              style: theme.textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.5,
+                                color: Colors.white,
                               ),
-                              onPressed: () {},
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 0,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Greeting and Profile
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  currentDate,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Good Day!',
-                                  style: theme.textTheme.headlineMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                      ),
-                                ),
-                                const SizedBox(height: 4),
-
-                                // User name with loading state
-                                userProfileState.when(
-                                  data:
-                                      (user) => Text(
-                                        user?.username ?? 'Guest',
-                                        style: theme.textTheme.titleMedium
-                                            ?.copyWith(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                  loading: () => _buildLoadingText(context),
-                                  error:
-                                      (_, __) => Text(
-                                        'User',
-                                        style: theme.textTheme.titleMedium
-                                            ?.copyWith(
-                                              color: Colors.white.withOpacity(
-                                                0.7,
-                                              ),
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Flexible(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.max,
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                // User profile image with loading state
-                                userProfileState.when(
-                                  data:
-                                      (user) => _buildProfileImage(
-                                        context,
-                                        user,
-                                        ref,
-                                      ),
-                                  loading: () => _buildLoadingProfileImage(),
-                                  error:
-                                      (_, __) => _buildDefaultProfileImage(ref),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Second Section
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(32),
-                    ),
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 16,
-                            offset: const Offset(0, -4),
-                          ),
-                        ],
-                      ),
-                      child: SingleChildScrollView(
-                        physics: const BouncingScrollPhysics(),
-                        // Add bottom padding to accommodate the action bar
-                        padding: const EdgeInsets.only(
-                          left: 24,
-                          right: 24,
-                          top: 24,
-                          bottom:
-                              130, // Added extra padding at the bottom for the action bar
-                        ),
-                        child: Column(
-                          children: [
-                            RandomPrompts(),
-                            SizedBox(height: 24),
-                            JournalCalendar(),
-                            SizedBox(height: 24),
-                            RecentEntriesSection(
-                              title: 'Recent Entries',
-                              accentColor: const Color(0xFF6E61FD),
                             ),
                           ],
                         ),
+                        const SizedBox(height: 16),
+
+                        // Search Bar (Updated)
+                        CompositedTransformTarget(
+                          link: _layerLink,
+                          child: SizedBox(
+                            height: 50,
+                            child: TextField(
+                              controller: _searchController,
+                              focusNode: _searchFocusNode,
+                              decoration: InputDecoration(
+                                hintText: 'Search memories...',
+                                prefixIcon: Icon(
+                                  Icons.search,
+                                  color: const Color(0xFF6E61FD),
+                                ),
+                                suffixIcon:
+                                    _searchController.text.isNotEmpty
+                                        ? IconButton(
+                                          icon: Icon(
+                                            Icons.clear,
+                                            color: const Color(0xFF6E61FD),
+                                          ),
+                                          onPressed: () {
+                                            _searchController.clear();
+                                            ref
+                                                .read(
+                                                  searchQueryProvider.notifier,
+                                                )
+                                                .state = '';
+                                            setState(
+                                              () {},
+                                            ); // Refresh to hide dropdown
+                                          },
+                                        )
+                                        : IconButton(
+                                          icon: Icon(
+                                            Icons.tune_rounded,
+                                            color: const Color(0xFF6E61FD),
+                                          ),
+                                          onPressed: () {},
+                                        ),
+                                filled: true,
+                                fillColor: Colors.white,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 0,
+                                ),
+                              ),
+                              onChanged: (value) {
+                                // Update search query provider
+                                ref.read(searchQueryProvider.notifier).state =
+                                    value;
+                                setState(
+                                  () {},
+                                ); // Refresh to show/hide dropdown as text changes
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Greeting and Profile
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    currentDate,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Good Day!',
+                                    style: theme.textTheme.headlineMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+
+                                  // User name with loading state
+                                  userProfileState.when(
+                                    data:
+                                        (user) => Text(
+                                          user?.username ?? 'Guest',
+                                          style: theme.textTheme.titleMedium
+                                              ?.copyWith(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                    loading: () => _buildLoadingText(context),
+                                    error:
+                                        (_, __) => Text(
+                                          'User',
+                                          style: theme.textTheme.titleMedium
+                                              ?.copyWith(
+                                                color: Colors.white.withOpacity(
+                                                  0.7,
+                                                ),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Flexible(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.max,
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  // User profile image with loading state
+                                  userProfileState.when(
+                                    data:
+                                        (user) => _buildProfileImage(
+                                          context,
+                                          user,
+                                          ref,
+                                        ),
+                                    loading: () => _buildLoadingProfileImage(),
+                                    error:
+                                        (_, __) =>
+                                            _buildDefaultProfileImage(ref),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Second Section
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(32),
+                      ),
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 16,
+                              offset: const Offset(0, -4),
+                            ),
+                          ],
+                        ),
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          // Add bottom padding to accommodate the action bar
+                          padding: const EdgeInsets.only(
+                            left: 24,
+                            right: 24,
+                            top: 24,
+                            bottom:
+                                130, // Added extra padding at the bottom for the action bar
+                          ),
+                          child: Column(
+                            children: [
+                              RandomPrompts(),
+                              SizedBox(height: 24),
+                              JournalCalendar(),
+                              SizedBox(height: 24),
+                              RecentEntriesSection(
+                                title: 'Recent Entries',
+                                accentColor: const Color(0xFF6E61FD),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-
-            // Create Content Action Bar positioned at the bottom
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: CreateContentActionBar(
-                selectedDate: DateTime.now(), // Use today's date
+                ],
               ),
-            ),
-          ],
+
+              // Create Content Action Bar positioned at the bottom
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: CreateContentActionBar(
+                  selectedDate: DateTime.now(), // Use today's date
+                ),
+              ),
+
+              // Add the search dropdown directly to the widget tree
+              if (_searchFocusNode.hasFocus ||
+                  _searchController.text.isNotEmpty)
+                SearchDropdown(
+                  layerLink: _layerLink,
+                  searchFocusNode: _searchFocusNode,
+                  searchController: _searchController,
+                ),
+            ],
+          ),
         ),
       ),
     );

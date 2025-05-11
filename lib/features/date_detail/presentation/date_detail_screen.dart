@@ -4,11 +4,10 @@ import 'package:echo/features/date_detail/widgets/audio_log_item.dart';
 import 'package:echo/features/date_detail/widgets/image_log_item.dart';
 import 'package:echo/features/date_detail/widgets/video_log_item.dart';
 import 'package:echo/shared/models/log_entry.dart';
+import 'package:echo/features/media_upload/widgets/create_content_action_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-
-import '../../media_upload/widgets/create_content_action_bar.dart';
 
 class DateDetailPage extends ConsumerStatefulWidget {
   final DateTime date;
@@ -90,7 +89,11 @@ class _DateDetailPageState extends ConsumerState<DateDetailPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.history_edu_outlined, size: 64, color: Colors.grey[400]),
+          Icon(
+            Icons.history_edu_outlined,
+            size: 64,
+            color: Theme.of(context).primaryColor,
+          ),
           const SizedBox(height: 16),
           Text(
             'No entries for this day',
@@ -107,7 +110,11 @@ class _DateDetailPageState extends ConsumerState<DateDetailPage> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          Icon(Icons.arrow_downward, size: 32, color: Colors.grey[400]),
+          Icon(
+            Icons.arrow_downward,
+            size: 32,
+            color: Theme.of(context).primaryColor,
+          ),
         ],
       ),
     );

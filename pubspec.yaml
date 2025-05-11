@@ -30,6 +30,10 @@ dependencies:
   chewie: ^1.11.3
   record: ^6.0.0
   permission_handler: ^12.0.0+1
+  google_speech: ^4.4.0
+  googleapis_auth: ^1.6.0
+  json_annotation: ^4.9.0
+  flutter_dotenv: ^5.2.1
 
 dev_dependencies:
   flutter_test:
@@ -45,3 +49,5 @@ flutter:
     - assets/icons/
     - assets/images/
     - assets/profile/
+    - assets/credentials/
+    - .env

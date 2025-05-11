@@ -1,178 +1,275 @@
+import 'package:echo/features/auth/provider/auth_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'recent_entry_card.dart';
 
-class RecentEntriesSection extends StatelessWidget {
-  final List<EntryData> entries = [
-    EntryData(
-      id: '1',
-      title: 'Morning reflection: Starting the day with gratitude',
-      dateTime: DateTime.now().subtract(const Duration(hours: 3)),
-      category: 'personal',
-      onTap: () {
-        // Handle entry tap
-        print('Tapped on entry 1');
-      },
-    ),
-    EntryData(
-      id: '2',
-      title: 'Project meeting notes: New feature planning',
-      dateTime: DateTime.now().subtract(const Duration(hours: 6)),
-      category: 'work',
-      onTap: () {
-        // Handle entry tap
-        print('Tapped on entry 2');
-      },
-    ),
-    EntryData(
-      id: '3',
-      title: 'Workout log: 5k run and strength training',
-      dateTime: DateTime.now().subtract(const Duration(days: 1)),
-      category: 'health',
-      onTap: () {
-        // Handle entry tap
-        print('Tapped on entry 3');
-      },
-    ),
-    EntryData(
-      id: '4',
-      title: 'App design ideas for the journal feature',
-      dateTime: DateTime.now().subtract(const Duration(days: 2)),
-      category: 'ideas',
-      onTap: () {
-        // Handle entry tap
-        print('Tapped on entry 4');
-      },
-    ),
-    EntryData(
-      id: '5',
-      title: 'Monthly goals: Focus areas for May',
-      dateTime: DateTime.now().subtract(const Duration(days: 3)),
-      category: 'goals',
-      onTap: () {
-        // Handle entry tap
-        print('Tapped on entry 5');
-      },
-    ),
-    // Additional entries (will show "more entries" indicator)
-    EntryData(
-      id: '6',
-      title: 'Book notes: "Atomic Habits" chapter 4',
-      dateTime: DateTime.now().subtract(const Duration(days: 4)),
-      category: 'personal',
-      onTap: () {},
-    ),
-    EntryData(
-      id: '7',
-      title: 'Weekly review: What went well and lessons learned',
-      dateTime: DateTime.now().subtract(const Duration(days: 5)),
-      category: 'personal',
-      onTap: () {},
-    ),
-  ];
+class RecentEntriesSection extends ConsumerWidget {
   final String title;
   final Color accentColor;
 
-  RecentEntriesSection({
+  const RecentEntriesSection({
     super.key,
     this.title = "Recent Entries",
     this.accentColor = const Color(0xFF6E61FD),
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section Header with Title and View All button
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Section Title
-              Text(
-                title,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: accentColor,
-                ),
-              ),
-            ],
-          ),
-        ),
+    // Get the current user from your auth provider
+    final authState = ref.watch(authStateProvider);
 
-        const SizedBox(height: 8),
-
-        // Empty state if no entries
-        if (entries.isEmpty)
-          Center(
+    return authState.when(
+      data: (user) {
+        // If user is not logged in, show login message
+        if (user == null) {
+          return Center(
             child: Padding(
               padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: Text(
+                'Please sign in to view your entries',
+                style: theme.textTheme.titleMedium,
+              ),
+            ),
+          );
+        }
+
+        // Use the user's ID from Google Sign-In
+        final userId = user.id;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Section Header with Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(
-                    Icons.note_alt_outlined,
-                    size: 48,
-                    color:
-                        isDarkMode
-                            ? Colors.grey.shade700
-                            : Colors.grey.shade400,
-                  ),
-                  const SizedBox(height: 16),
+                  // Section Title
                   Text(
-                    'No recent entries yet',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color:
-                          isDarkMode
-                              ? Colors.grey.shade400
-                              : Colors.grey.shade600,
+                    title,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: accentColor,
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Your recent journal entries will appear here',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color:
-                          isDarkMode
-                              ? Colors.grey.shade500
-                              : Colors.grey.shade700,
-                    ),
-                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
             ),
-          ),
 
-        // List of Entry Cards (limited to 5)
-        if (entries.isNotEmpty)
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: entries.length > 5 ? 5 : entries.length,
-            itemBuilder: (context, index) {
-              final entry = entries[index];
+            const SizedBox(height: 8),
 
-              return RecentEntryCard(
-                title: entry.title,
-                date: entry.formattedDate,
-                time: entry.formattedTime,
-                accentColor: const Color(0xFFF48F5B),
-                onTap: entry.onTap,
-              );
-            },
+            // Use FutureBuilder instead of StreamBuilder for simpler query
+            FutureBuilder<List<DocumentSnapshot>>(
+              future: _getAudioLogs(userId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Error loading entries: ${snapshot.error}',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  );
+                }
+
+                final docs = snapshot.data ?? [];
+
+                if (docs.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.audio_file,
+                            size: 48,
+                            color:
+                                isDarkMode
+                                    ? Colors.grey.shade700
+                                    : Colors.grey.shade400,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No recent audio entries yet',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color:
+                                  isDarkMode
+                                      ? Colors.grey.shade400
+                                      : Colors.grey.shade600,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Your recent audio recordings will appear here',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color:
+                                  isDarkMode
+                                      ? Colors.grey.shade500
+                                      : Colors.grey.shade700,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: docs.length,
+                  itemBuilder: (context, index) {
+                    final doc = docs[index];
+
+                    try {
+                      // Extract data from document
+                      final data = doc.data() as Map<String, dynamic>;
+
+                      // Extract title with fallbacks
+                      final title =
+                          data['title'] ??
+                          data['fileName'] ??
+                          data['content'] ??
+                          'Audio Recording';
+
+                      // Extract timestamp with fallbacks
+                      DateTime dateTime;
+                      try {
+                        if (data['timestamp'] is Timestamp) {
+                          dateTime = (data['timestamp'] as Timestamp).toDate();
+                        } else if (data['date'] is Timestamp) {
+                          dateTime = (data['date'] as Timestamp).toDate();
+                        } else if (data['created_at'] is Timestamp) {
+                          dateTime = (data['created_at'] as Timestamp).toDate();
+                        } else {
+                          // Default to now if no valid timestamp
+                          dateTime = DateTime.now();
+                        }
+                      } catch (_) {
+                        dateTime = DateTime.now();
+                      }
+
+                      // Create EntryData object for formatting
+                      final entryData = EntryData(
+                        id: doc.id,
+                        title: title.toString(),
+                        dateTime: dateTime,
+                        category: 'audio',
+                      );
+
+                      // Pass ID directly to the card instead of using onTap callback
+                      return RecentEntryCard(
+                        title: entryData.title,
+                        date: entryData.formattedDate,
+                        time: entryData.formattedTime,
+                        entryId: doc.id, // Pass document ID to the card
+                        accentColor: const Color(0xFFF48F5B),
+                      );
+                    } catch (e) {
+                      return const SizedBox.shrink();
+                    }
+                  },
+                );
+              },
+            ),
+          ],
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error:
+          (error, stackTrace) => Center(
+            child: Text(
+              'Error loading user: $error',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
-      ],
     );
+  }
+
+  // Helper method to fetch and filter audio logs
+  Future<List<DocumentSnapshot>> _getAudioLogs(String userId) async {
+    try {
+      // Get all logs without complex queries
+      final QuerySnapshot snapshot =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .collection('logs')
+              .get();
+
+      // Get all documents
+      final allDocs = snapshot.docs;
+
+      // Filter for audio files client-side
+      final audioLogs =
+          allDocs.where((doc) {
+            try {
+              final data = doc.data() as Map<String, dynamic>;
+
+              // Check various fields that might indicate an audio file
+              final fileType = data['fileType'] ?? data['type'] ?? '';
+              final fileName =
+                  (data['fileName'] ?? '').toString().toLowerCase();
+              final mimeType =
+                  (data['mimeType'] ?? '').toString().toLowerCase();
+
+              return fileType == 'audio' ||
+                  fileName.contains('.mp3') ||
+                  fileName.contains('.wav') ||
+                  fileName.contains('.m4a') ||
+                  mimeType.contains('audio');
+            } catch (e) {
+              return false;
+            }
+          }).toList();
+
+      // Sort by timestamp (newest first)
+      audioLogs.sort((a, b) {
+        try {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+
+          Timestamp? aTimestamp;
+          Timestamp? bTimestamp;
+
+          if (aData['timestamp'] is Timestamp) {
+            aTimestamp = aData['timestamp'] as Timestamp;
+          }
+
+          if (bData['timestamp'] is Timestamp) {
+            bTimestamp = bData['timestamp'] as Timestamp;
+          }
+
+          if (aTimestamp == null || bTimestamp == null) {
+            return 0;
+          }
+
+          return bTimestamp.compareTo(aTimestamp); // Descending order
+        } catch (e) {
+          return 0;
+        }
+      });
+
+      // Limit to 5 entries
+      return audioLogs.length > 5 ? audioLogs.sublist(0, 5) : audioLogs;
+    } catch (e) {
+      return [];
+    }
   }
 }
 
-// Model class for entry data
+// Keep the EntryData model class the same
 class EntryData {
   final String id;
   final String title;
@@ -237,97 +334,3 @@ class EntryData {
     }
   }
 }
-
-// Example usage:
-/*
-// Sample data for demonstration
-final List<EntryData> sampleEntries = [
-  EntryData(
-    id: '1',
-    title: 'Morning reflection: Starting the day with gratitude',
-    dateTime: DateTime.now().subtract(const Duration(hours: 3)),
-    category: 'personal',
-    onTap: () {
-      // Handle entry tap
-      print('Tapped on entry 1');
-    },
-  ),
-  EntryData(
-    id: '2',
-    title: 'Project meeting notes: New feature planning',
-    dateTime: DateTime.now().subtract(const Duration(hours: 6)),
-    category: 'work',
-    onTap: () {
-      // Handle entry tap
-      print('Tapped on entry 2');
-    },
-  ),
-  EntryData(
-    id: '3',
-    title: 'Workout log: 5k run and strength training',
-    dateTime: DateTime.now().subtract(const Duration(days: 1)),
-    category: 'health',
-    onTap: () {
-      // Handle entry tap
-      print('Tapped on entry 3');
-    },
-  ),
-  EntryData(
-    id: '4',
-    title: 'App design ideas for the journal feature',
-    dateTime: DateTime.now().subtract(const Duration(days: 2)),
-    category: 'ideas',
-    onTap: () {
-      // Handle entry tap
-      print('Tapped on entry 4');
-    },
-  ),
-  EntryData(
-    id: '5',
-    title: 'Monthly goals: Focus areas for May',
-    dateTime: DateTime.now().subtract(const Duration(days: 3)),
-    category: 'goals',
-    onTap: () {
-      // Handle entry tap
-      print('Tapped on entry 5');
-    },
-  ),
-  // Additional entries (will show "more entries" indicator)
-  EntryData(
-    id: '6',
-    title: 'Book notes: "Atomic Habits" chapter 4',
-    dateTime: DateTime.now().subtract(const Duration(days: 4)),
-    category: 'personal',
-    onTap: () {},
-  ),
-  EntryData(
-    id: '7',
-    title: 'Weekly review: What went well and lessons learned',
-    dateTime: DateTime.now().subtract(const Duration(days: 5)),
-    category: 'personal',
-    onTap: () {},
-  ),
-];
-
-// Using the RecentEntriesSection in a widget
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    appBar: AppBar(title: Text('My Journal')),
-    body: SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: RecentEntriesSection(
-          title: 'Recent Journal Entries',
-          entries: sampleEntries,
-          accentColor: const Color(0xFF6E61FD),
-          onViewAllPressed: () {
-            // Navigate to all entries screen
-            print('View all entries pressed');
-          },
-        ),
-      ),
-    ),
-  );
-}
-*/

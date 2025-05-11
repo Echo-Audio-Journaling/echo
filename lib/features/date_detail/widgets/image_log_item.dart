@@ -1,5 +1,5 @@
-import 'package:echo/features/detail/provider/log_entries_provider.dart';
-import 'package:echo/features/detail/widgets/edit_title_dialog.dart';
+import 'package:echo/features/date_detail/provider/log_entries_provider.dart';
+import 'package:echo/features/date_detail/widgets/edit_title_dialog.dart';
 import 'package:echo/shared/models/log_entry.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -240,7 +240,7 @@ class ImageLogItem extends ConsumerWidget {
                   Navigator.of(context).pop();
                   ref
                       .read(logEntriesProvider.notifier)
-                      .deleteLogEntry(entry.id);
+                      .deleteLogEntry(entry.id, entry.imageUrl);
                 },
                 child: const Text(
                   'Delete',

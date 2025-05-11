@@ -39,6 +39,7 @@ class AudioLogEntry extends LogEntry {
   final String transcription;
   final Duration duration;
   bool isPlaying;
+  List<String> tags; // New property for tags
 
   AudioLogEntry({
     required super.id,
@@ -48,6 +49,7 @@ class AudioLogEntry extends LogEntry {
     required this.transcription,
     required this.duration,
     this.isPlaying = false,
+    this.tags = const [], // Default to empty list
   }) : super(type: LogEntryType.audio);
 
   factory AudioLogEntry.fromJson(Map<String, dynamic> json) {
@@ -58,6 +60,7 @@ class AudioLogEntry extends LogEntry {
       audioUrl: json['audioUrl'],
       transcription: json['transcription'],
       duration: Duration(milliseconds: json['durationMs'] ?? 0),
+      tags: List<String>.from(json['tags'] ?? []), // Parse tags from json
     );
   }
 
@@ -71,6 +74,7 @@ class AudioLogEntry extends LogEntry {
       'audioUrl': audioUrl,
       'transcription': transcription,
       'durationMs': duration.inMilliseconds,
+      'tags': tags, // Add tags to json
     };
   }
 

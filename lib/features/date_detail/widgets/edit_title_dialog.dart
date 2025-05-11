@@ -32,6 +32,7 @@ class _EditTitleDialogState extends State<EditTitleDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      backgroundColor: Colors.white,
       title: Text('Edit ${widget.type} Title'),
       content: TextField(
         controller: _titleController,

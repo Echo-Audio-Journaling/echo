@@ -119,6 +119,7 @@ class HypnoticSlogan extends StatelessWidget {
             ),
             child: AnimatedTextKit(
               isRepeatingAnimation: true,
+              repeatForever: true,
               animatedTexts: [
                 TyperAnimatedText(
                   'stories',
