@@ -36,23 +36,35 @@ class SearchDropdown extends ConsumerWidget {
     return CompositedTransformFollower(
       link: layerLink,
       showWhenUnlinked: false,
-      offset: const Offset(0, 53), // Position below search bar
+      offset: const Offset(-25, 60), // Position below search bar
       child: Material(
         elevation: 8,
-        borderRadius: BorderRadius.circular(12),
         color: Colors.transparent,
         shadowColor: Colors.transparent,
-        child: SingleChildScrollView(
-          child: Container(
+        child: Container(
+          margin: const EdgeInsets.symmetric(
+            horizontal: 24,
+          ), // Match horizontal padding
+          decoration: BoxDecoration(
             color: Colors.white,
-            margin: const EdgeInsets.only(right: 50),
-            padding: const EdgeInsets.all(10),
-            alignment: Alignment.center,
-            constraints: BoxConstraints(
-              maxHeight: 250, // Max height for scrollable area
-              maxWidth:
-                  MediaQuery.of(context).size.width, // Max width for dropdown
-            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          constraints: BoxConstraints(
+            maxHeight: 250, // Max height for scrollable area
+            maxWidth:
+                MediaQuery.of(
+                  context,
+                ).size.width, // Max width accounting for padding
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
             child: quickResults.when(
               data: (entries) {
                 if (entries.isEmpty) {
@@ -81,8 +93,8 @@ class SearchDropdown extends ConsumerWidget {
                           ),
                           Text(
                             '${entries.length} found${hasMoreResults ? '+' : ''}',
-                            style: TextStyle(
-                              color: const Color(0xFF6E61FD),
+                            style: const TextStyle(
+                              color: Color(0xFF6E61FD),
                               fontWeight: FontWeight.w500,
                               fontSize: 12,
                             ),
@@ -96,46 +108,42 @@ class SearchDropdown extends ConsumerWidget {
 
                     // Results list (scrollable)
                     Flexible(
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.only(
-                          bottomLeft: Radius.circular(12),
-                          bottomRight: Radius.circular(12),
-                        ),
-                        child: ListView.separated(
-                          shrinkWrap: true,
-                          padding: EdgeInsets.zero,
-                          itemCount: entries.length + (hasMoreResults ? 1 : 0),
-                          separatorBuilder:
-                              (context, index) => Divider(
-                                height: 1,
-                                color: Colors.grey[200],
-                                indent: 16,
-                                endIndent: 16,
-                              ),
-                          itemBuilder: (context, index) {
-                            // If we're at the last position and have more results, show the "View all" button
-                            if (hasMoreResults && index == entries.length) {
-                              return _buildViewAllButton(ref);
-                            }
-                            final id = entries[index].id;
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        itemCount: entries.length + (hasMoreResults ? 1 : 0),
+                        separatorBuilder:
+                            (context, index) => Divider(
+                              height: 1,
+                              color: Colors.grey[200],
+                              indent: 16,
+                              endIndent: 16,
+                            ),
+                        itemBuilder: (context, index) {
+                          // If we're at the last position and have more results, show the "View all" button
+                          if (hasMoreResults && index == entries.length) {
+                            return _buildViewAllButton(ref);
+                          }
+                          final entry = entries[index];
+                          final id = entry.id;
 
-                            // Use the SearchPreviewCard with compact mode enabled
-                            return SearchPreviewCard(
-                              entry: entries[index],
-                              isCompact: true, // Use compact mode for dropdown
-                              onTap: () {
-                                // Clear search query when navigating
-                                ref.read(searchQueryProvider.notifier).state =
-                                    '';
-                                searchController.clear();
+                          // Use the SearchPreviewCard with compact mode enabled
+                          return SearchPreviewCard(
+                            entry: entry,
+                            isCompact: true, // Use compact mode for dropdown
+                            onTap: () {
+                              // Clear search query when navigating
+                              ref.read(searchQueryProvider.notifier).state = '';
+                              searchController.clear();
 
-                                // Navigate to audio detail and clear search focus
-                                ref.read(routerProvider).go('/audio/$id');
-                                searchFocusNode.unfocus();
-                              },
-                            );
-                          },
-                        ),
+                              // Navigate to audio detail and clear search focus
+                              ref
+                                  .read(routerProvider)
+                                  .go('/audio/$id', extra: 'home');
+                              searchFocusNode.unfocus();
+                            },
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -154,11 +162,11 @@ class SearchDropdown extends ConsumerWidget {
   Widget _buildViewAllButton(WidgetRef ref) {
     return InkWell(
       onTap: () {
-        // Navigate to full search results page
-        ref.read(routerProvider).go('/search');
+        // Navigate to full search results page using the current search query
+        ref.read(searchNavigationProvider)(searchController.text);
 
-        // Keep focus on search field but don't clear it
-        // as we want to maintain the search on the results page
+        // Unfocus the search field after navigation
+        searchFocusNode.unfocus();
       },
       child: Container(
         width: double.infinity,
@@ -170,17 +178,17 @@ class SearchDropdown extends ConsumerWidget {
             children: [
               Text(
                 'View all results',
-                style: TextStyle(
-                  color: const Color(0xFF6E61FD),
+                style: const TextStyle(
+                  color: Color(0xFF6E61FD),
                   fontWeight: FontWeight.w600,
                   fontSize: 13,
                 ),
               ),
               const SizedBox(width: 4),
-              Icon(
+              const Icon(
                 Icons.arrow_forward,
                 size: 12,
-                color: const Color(0xFF6E61FD),
+                color: Color(0xFF6E61FD),
               ),
             ],
           ),

@@ -130,7 +130,9 @@ class _AudioLogItemState extends ConsumerState<AudioLogItem> {
   }
 
   void _viewFullTranscription() {
-    ref.read(routerProvider).go('/audio/${widget.entry.id}');
+    ref
+        .read(routerProvider)
+        .go('/audio/${widget.entry.id}', extra: 'date_detail');
   }
 
   @override

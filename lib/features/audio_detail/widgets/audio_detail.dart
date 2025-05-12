@@ -9,8 +9,13 @@ import 'package:intl/intl.dart';
 
 class AudioDetailWidget extends ConsumerStatefulWidget {
   final AudioLogEntry entry;
+  final String previousRoute;
 
-  const AudioDetailWidget({super.key, required this.entry});
+  const AudioDetailWidget({
+    super.key,
+    required this.entry,
+    required this.previousRoute,
+  });
 
   @override
   ConsumerState<AudioDetailWidget> createState() => _AudioDetailWidgetState();
@@ -242,8 +247,15 @@ class _AudioDetailWidgetState extends ConsumerState<AudioDetailWidget> {
             final month = dateTime.month;
             final day = dateTime.day;
 
-            // Use the router to navigate to the date detail page
-            ref.read(routerProvider).go('/date/$year/$month/$day');
+            if (widget.previousRoute == "home") {
+              ref.read(routerProvider).go('/');
+            } else if (widget.previousRoute == "date_detail") {
+              ref.read(routerProvider).go('/date/$year/$month/$day');
+            } else if (widget.previousRoute == "search") {
+              ref.read(routerProvider).go('/search');
+            } else {
+              ref.read(routerProvider).go('/');
+            }
           },
         ),
         title: const Text(

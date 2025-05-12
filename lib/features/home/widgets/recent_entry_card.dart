@@ -25,7 +25,7 @@ class RecentEntryCard extends StatelessWidget {
     return GestureDetector(
       onTap: () {
         // Navigate to the audio detail screen with the entry ID
-        context.go('/audio/$entryId');
+        context.go('/audio/$entryId', extra: 'home');
       },
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
