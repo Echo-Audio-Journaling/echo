@@ -665,8 +665,28 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
 
   Color _getDayBackgroundColor(int eventCount) {
     if (eventCount == 0) return Colors.transparent;
-    final opacity = (eventCount * 0.2).clamp(0.1, 0.8);
-    return _baseColor.withOpacity(opacity);
+
+    // Define base color (e.g., your purple color)
+    final baseHue = HSLColor.fromColor(_baseColor).hue;
+    final baseSaturation = HSLColor.fromColor(_baseColor).saturation;
+
+    // Define distinct levels
+    if (eventCount == 1) {
+      // Level 1 (lightest) - High lightness
+      return HSLColor.fromAHSL(1.0, baseHue, baseSaturation, 0.85).toColor();
+    } else if (eventCount <= 3) {
+      // Level 2
+      return HSLColor.fromAHSL(1.0, baseHue, baseSaturation, 0.75).toColor();
+    } else if (eventCount <= 5) {
+      // Level 3
+      return HSLColor.fromAHSL(1.0, baseHue, baseSaturation, 0.65).toColor();
+    } else if (eventCount <= 8) {
+      // Level 4
+      return HSLColor.fromAHSL(1.0, baseHue, baseSaturation, 0.55).toColor();
+    } else {
+      // Level 5 (darkest)
+      return HSLColor.fromAHSL(1.0, baseHue, baseSaturation, 0.45).toColor();
+    }
   }
 
   Color _getDayTextColor(int eventCount) {

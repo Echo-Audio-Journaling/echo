@@ -30,7 +30,7 @@ class _AudioDetailWidgetState extends ConsumerState<AudioDetailWidget> {
   bool _isPlaying = false;
   bool _isInitialized = false;
   bool _isFavorite = false;
-  bool _isEditing = false; // Single editing mode flag
+  bool _isEditing = false;
   List<String> _tags = [];
 
   @override
@@ -41,6 +41,7 @@ class _AudioDetailWidgetState extends ConsumerState<AudioDetailWidget> {
       text: widget.entry.transcription,
     );
     _tagController = TextEditingController();
+    _isFavorite = widget.entry.isFavorite;
     _tags = List.from(widget.entry.tags);
     _initializeAudioPlayer();
   }
@@ -151,6 +152,7 @@ class _AudioDetailWidgetState extends ConsumerState<AudioDetailWidget> {
       duration: widget.entry.duration,
       isPlaying: _isPlaying,
       tags: _tags,
+      isFavorite: _isFavorite,
     );
 
     // Update in provider
@@ -270,9 +272,11 @@ class _AudioDetailWidgetState extends ConsumerState<AudioDetailWidget> {
               color: Colors.white,
             ),
             onPressed: () {
+              // Toggle favorite status
               setState(() {
                 _isFavorite = !_isFavorite;
               });
+              _saveChanges();
             },
           ),
           // Edit/Save button - toggles between edit and save
