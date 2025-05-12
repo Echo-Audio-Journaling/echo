@@ -81,7 +81,10 @@ class _SearchResultsPageState extends ConsumerState<SearchResultsPage> {
                   contentPadding: const EdgeInsets.symmetric(vertical: 0),
                 ),
                 onSubmitted: (value) {
-                  ref.read(searchQueryProvider.notifier).state = value.trim();
+                  // Use the searchNavigationProvider to set query and stay on results page
+                  if (value.trim().isNotEmpty) {
+                    ref.read(searchQueryProvider.notifier).state = value.trim();
+                  }
                 },
                 onChanged: (value) {
                   // Update search query on each keystroke for real-time results

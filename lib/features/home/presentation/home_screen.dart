@@ -111,27 +111,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Search Bar (Updated)
+                        // Search Bar (Using CompositedTransformTarget to anchor the dropdown)
                         CompositedTransformTarget(
                           link: _layerLink,
-                          child: SizedBox(
-                            height: 50,
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 0),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: Colors.grey[200]!,
+                                width: 1,
+                              ),
+                            ),
                             child: TextField(
                               controller: _searchController,
                               focusNode: _searchFocusNode,
                               decoration: InputDecoration(
                                 hintText: 'Search memories...',
+                                hintStyle: TextStyle(color: Colors.grey[500]),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.all(16),
                                 prefixIcon: Icon(
                                   Icons.search,
-                                  color: const Color(0xFF6E61FD),
+                                  color: Colors.grey[600],
                                 ),
                                 suffixIcon:
                                     _searchController.text.isNotEmpty
                                         ? IconButton(
-                                          icon: Icon(
-                                            Icons.clear,
-                                            color: const Color(0xFF6E61FD),
-                                          ),
+                                          icon: const Icon(Icons.clear),
                                           onPressed: () {
                                             _searchController.clear();
                                             ref
@@ -139,35 +147,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                                   searchQueryProvider.notifier,
                                                 )
                                                 .state = '';
-                                            setState(
-                                              () {},
-                                            ); // Refresh to hide dropdown
                                           },
                                         )
-                                        : IconButton(
-                                          icon: Icon(
-                                            Icons.tune_rounded,
-                                            color: const Color(0xFF6E61FD),
-                                          ),
-                                          onPressed: () {},
-                                        ),
-                                filled: true,
-                                fillColor: Colors.white,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 0,
-                                ),
+                                        : null,
                               ),
                               onChanged: (value) {
-                                // Update search query provider
+                                // Update search query on each keystroke
                                 ref.read(searchQueryProvider.notifier).state =
                                     value;
-                                setState(
-                                  () {},
-                                ); // Refresh to show/hide dropdown as text changes
+                              },
+                              onSubmitted: (value) {
+                                // Navigate to search results page when Enter is pressed
+                                if (value.trim().isNotEmpty) {
+                                  ref.read(searchNavigationProvider)(value);
+                                }
                               },
                             ),
                           ),
@@ -311,13 +304,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
 
-              // Add the search dropdown directly to the widget tree
+              // Search dropdown (using Overlay via CompositedTransformFollower)
               if (_searchFocusNode.hasFocus ||
                   _searchController.text.isNotEmpty)
-                SearchDropdown(
-                  layerLink: _layerLink,
-                  searchFocusNode: _searchFocusNode,
-                  searchController: _searchController,
+                Positioned(
+                  // This positioned widget ensures the dropdown doesn't affect layout
+                  top: 0, // Position from top
+                  left: 0,
+                  right: 0,
+                  child: SearchDropdown(
+                    layerLink: _layerLink,
+                    searchFocusNode: _searchFocusNode,
+                    searchController: _searchController,
+                  ),
                 ),
             ],
           ),

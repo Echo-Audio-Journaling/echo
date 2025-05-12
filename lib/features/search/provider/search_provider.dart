@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:echo/app/router.dart';
 import 'package:echo/features/auth/provider/auth_provider.dart';
 import 'package:echo/shared/models/log_entry.dart';
 import 'package:flutter/foundation.dart';
@@ -42,6 +43,19 @@ final hasMoreResultsProvider = Provider<bool>((ref) {
       (fullResults.valueOrNull?.length ?? 0) > 5;
 });
 
+// Helper provider to navigate to search results page
+final searchNavigationProvider = Provider<void Function(String)>((ref) {
+  return (String query) {
+    if (query.trim().isNotEmpty) {
+      // Update the search query first
+      ref.read(searchQueryProvider.notifier).state = query.trim();
+
+      // Then navigate to the search results page
+      ref.read(routerProvider).go('/search');
+    }
+  };
+});
+
 class SearchResultsNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String? _userId;
@@ -83,7 +97,7 @@ class SearchResultsNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
               .orderBy('timestamp', descending: true) // Get newest first
               .get();
 
-      // Convert query results to LogEntry objects and filter by title
+      // Convert query results to LogEntry objects and filter by search term
       final searchTermLower = _searchQuery.toLowerCase();
       final logEntries =
           querySnapshot.docs
@@ -92,9 +106,41 @@ class SearchResultsNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
                 data['id'] = doc.id; // Add document ID to the data
                 return LogEntry.fromJson(data);
               })
-              .where(
-                (entry) => entry.title.toLowerCase().contains(searchTermLower),
-              )
+              .where((entry) {
+                // Search in title
+                if (entry.title.toLowerCase().contains(searchTermLower)) {
+                  return true;
+                }
+
+                // Also search in audio transcription if it's an audio entry
+                if (entry is AudioLogEntry) {
+                  if (entry.transcription.toLowerCase().contains(
+                    searchTermLower,
+                  )) {
+                    return true;
+                  }
+
+                  // Also search in tags for audio entries
+                  return entry.tags.any(
+                    (tag) => tag.toLowerCase().contains(searchTermLower),
+                  );
+                }
+
+                // For image and video entries, search in description if available
+                if (entry is ImageLogEntry && entry.description != null) {
+                  return entry.description!.toLowerCase().contains(
+                    searchTermLower,
+                  );
+                }
+
+                if (entry is VideoLogEntry && entry.description != null) {
+                  return entry.description!.toLowerCase().contains(
+                    searchTermLower,
+                  );
+                }
+
+                return false;
+              })
               .toList();
 
       state = AsyncValue.data(logEntries);
