@@ -1,3 +1,3 @@
-# client
+# Echo Audio Journaling Application
 
-A new Flutter project.
+The very first project for us, but definitely not the last!
