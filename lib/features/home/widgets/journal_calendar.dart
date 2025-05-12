@@ -1,80 +1,55 @@
-import 'dart:collection';
 import 'package:echo/app/router.dart';
+import 'package:echo/features/date_detail/provider/log_entries_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:echo/shared/models/log_entry.dart';
 
-class Event {
-  final String title;
-  const Event(this.title);
+// New provider to get log entries grouped by date for calendar view
+final calendarEntriesProvider =
+    StateProvider.autoDispose<Map<DateTime, List<LogEntry>>>((ref) {
+      final entriesAsyncValue = ref.watch(logEntriesProvider);
+
+      // Default empty map
+      Map<DateTime, List<LogEntry>> entriesByDate = {};
+
+      // Only process if we have data
+      if (entriesAsyncValue.hasValue && entriesAsyncValue.value != null) {
+        // Group entries by date (ignoring time component)
+        entriesByDate = groupLogEntriesByDate(entriesAsyncValue.value!);
+      }
+
+      return entriesByDate;
+    });
+
+// Helper function to group log entries by date
+Map<DateTime, List<LogEntry>> groupLogEntriesByDate(List<LogEntry> entries) {
+  final Map<DateTime, List<LogEntry>> result = {};
+
+  for (final entry in entries) {
+    // Create date without time component
+    final dateOnly = DateTime(
+      entry.timestamp.year,
+      entry.timestamp.month,
+      entry.timestamp.day,
+    );
+
+    if (!result.containsKey(dateOnly)) {
+      result[dateOnly] = [];
+    }
+
+    result[dateOnly]!.add(entry);
+  }
+
+  return result;
 }
 
 class JournalCalendar extends ConsumerStatefulWidget {
-  final LinkedHashMap<DateTime, List<Event>> events = LinkedHashMap(
-    equals: isSameDay,
-    hashCode:
-        (DateTime key) => key.day * 1000000 + key.month * 10000 + key.year,
-  )..addAll({
-    // Current week
-    DateTime.now().subtract(const Duration(days: 3)): [
-      Event("Morning meditation"),
-      Event("Team meeting notes"),
-    ],
-    DateTime.now().subtract(const Duration(days: 2)): [Event("Gym workout")],
-    DateTime.now().subtract(const Duration(days: 1)): [
-      Event("Dinner with Alex"),
-      Event("Book reading"),
-      Event("Project ideas"),
-    ],
-    DateTime.now(): [
-      Event("Today's reflection"),
-      Event("Doctor appointment"),
-      Event("Call mom"),
-      Event("Gratitude journal"),
-    ],
-    DateTime.now().add(const Duration(days: 1)): [
-      Event("Weekend plans"),
-      Event("Shopping list"),
-    ],
-
-    // Previous month highlights
-    DateTime(DateTime.now().year, DateTime.now().month - 1, 15): [
-      Event("Vacation day!"),
-      Event("Beach photos"),
-    ],
-    DateTime(DateTime.now().year, DateTime.now().month - 1, 20): [
-      Event("Job interview"),
-      Event("Follow-up email"),
-      Event("Research notes"),
-    ],
-
-    // Next month
-    DateTime(DateTime.now().year, DateTime.now().month + 1, 5): [
-      Event("Birthday reminder"),
-    ],
-
-    // Random scattered entries
-    DateTime(DateTime.now().year, DateTime.now().month, 7): [
-      Event("Ideas for blog post"),
-      Event("Movie night"),
-    ],
-    DateTime(DateTime.now().year, DateTime.now().month, 12): [
-      Event("Conference notes"),
-      Event("Networking contacts"),
-      Event("Key takeaways"),
-      Event("Action items"),
-    ],
-    DateTime(DateTime.now().year, DateTime.now().month, 25): [
-      Event("Monthly review"),
-      Event("Goals check-in"),
-    ],
-  });
-
   // Added parameters for min and max years
   final int? minYear;
   final int? maxYear;
 
-  JournalCalendar({super.key, this.minYear = 2020, this.maxYear = 2030});
+  const JournalCalendar({super.key, this.minYear = 2020, this.maxYear = 2030});
 
   @override
   ConsumerState<JournalCalendar> createState() => _JournalCalendarState();
@@ -90,10 +65,38 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
     super.initState();
     _focusedDay = DateTime.now();
     _selectedDay = DateTime.now();
+
+    // Fetch all entries for the current month when the calendar initializes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchEntriesForCurrentMonth();
+    });
   }
 
-  List<Event> _getEventsForDay(DateTime day) {
-    return widget.events[DateTime(day.year, day.month, day.day)] ?? [];
+  // Fetch entries for the current focused month
+  void _fetchEntriesForCurrentMonth() {
+    final year = _focusedDay.year;
+    final month = _focusedDay.month;
+
+    // Start of month
+    final firstDay = DateTime(year, month, 1);
+
+    // End of month (first day of next month minus 1 day)
+    final lastDay = DateTime(year, month + 1, 0, 23, 59, 59, 999);
+
+    // Fetch entries for date range
+    ref
+        .read(logEntriesProvider.notifier)
+        .fetchEntriesForMonth(firstDay, lastDay);
+  }
+
+  // Get entries for a specific day from the Firestore data
+  List<LogEntry> _getEntriesForDay(DateTime day) {
+    final entriesByDate = ref.watch(calendarEntriesProvider);
+
+    // Create a date with just year, month, and day components for comparison
+    final dateKey = DateTime(day.year, day.month, day.day);
+
+    return entriesByDate[dateKey] ?? [];
   }
 
   // Show month and year picker dialog
@@ -145,13 +148,13 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isDarkMode ? Color(0xFF1E1E1E) : Colors.white,
+                  color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withAlpha(26),
                       blurRadius: 12,
-                      offset: Offset(0, 4),
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
@@ -179,14 +182,16 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                         ),
                       ],
                     ),
-                    Divider(height: 24),
+                    const Divider(height: 24),
 
                     // Tabs for Month and Year
                     Container(
-                      margin: EdgeInsets.symmetric(horizontal: 8),
+                      margin: const EdgeInsets.symmetric(horizontal: 8),
                       decoration: BoxDecoration(
                         color:
-                            isDarkMode ? Color(0xFF2D2D2D) : Color(0xFFF5F5F5),
+                            isDarkMode
+                                ? const Color(0xFF2D2D2D)
+                                : const Color(0xFFF5F5F5),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: DefaultTabController(
@@ -200,7 +205,10 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                               labelColor: _baseColor,
                               unselectedLabelColor:
                                   isDarkMode ? Colors.white70 : Colors.black54,
-                              tabs: [Tab(text: 'MONTH'), Tab(text: 'YEAR')],
+                              tabs: const [
+                                Tab(text: 'MONTH'),
+                                Tab(text: 'YEAR'),
+                              ],
                             ),
                             SizedBox(
                               height: 220,
@@ -211,7 +219,7 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                                     padding: const EdgeInsets.all(8.0),
                                     child: GridView.builder(
                                       gridDelegate:
-                                          SliverGridDelegateWithFixedCrossAxisCount(
+                                          const SliverGridDelegateWithFixedCrossAxisCount(
                                             crossAxisCount: 3,
                                             childAspectRatio: 2.0,
                                             crossAxisSpacing: 4,
@@ -225,7 +233,9 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
 
                                         return AnimatedContainer(
                                           margin: EdgeInsets.zero,
-                                          duration: Duration(milliseconds: 200),
+                                          duration: const Duration(
+                                            milliseconds: 200,
+                                          ),
                                           decoration: BoxDecoration(
                                             color:
                                                 isSelected
@@ -287,7 +297,7 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                                     padding: const EdgeInsets.all(12.0),
                                     child: GridView.builder(
                                       gridDelegate:
-                                          SliverGridDelegateWithFixedCrossAxisCount(
+                                          const SliverGridDelegateWithFixedCrossAxisCount(
                                             crossAxisCount: 3,
                                             childAspectRatio: 1.5,
                                             crossAxisSpacing: 8,
@@ -303,7 +313,9 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
 
                                         return AnimatedContainer(
                                           margin: EdgeInsets.zero,
-                                          duration: Duration(milliseconds: 200),
+                                          duration: const Duration(
+                                            milliseconds: 200,
+                                          ),
                                           decoration: BoxDecoration(
                                             color:
                                                 isSelected
@@ -317,8 +329,8 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                                                   isSelected
                                                       ? _baseColor
                                                       : isCurrent
-                                                      ? _baseColor.withOpacity(
-                                                        0.5,
+                                                      ? _baseColor.withAlpha(
+                                                        128,
                                                       )
                                                       : isDarkMode
                                                       ? Colors.white30
@@ -370,17 +382,19 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                       ),
                     ),
 
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
                     // Current Selection Preview
                     Container(
-                      padding: EdgeInsets.symmetric(
+                      padding: const EdgeInsets.symmetric(
                         vertical: 12,
                         horizontal: 16,
                       ),
                       decoration: BoxDecoration(
                         color:
-                            isDarkMode ? Color(0xFF2D2D2D) : Color(0xFFF5F5F5),
+                            isDarkMode
+                                ? const Color(0xFF2D2D2D)
+                                : const Color(0xFFF5F5F5),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
@@ -405,7 +419,7 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                       ),
                     ),
 
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
                     // Action Buttons
                     Row(
@@ -416,7 +430,7 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                             Navigator.of(context).pop();
                           },
                           child: Padding(
-                            padding: EdgeInsets.symmetric(
+                            padding: const EdgeInsets.symmetric(
                               horizontal: 8,
                               vertical: 4,
                             ),
@@ -432,7 +446,7 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                             ),
                           ),
                         ),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         ElevatedButton(
                           onPressed: () {
                             // Update focused day in parent widget
@@ -442,6 +456,9 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                                 selectedMonth,
                                 1,
                               );
+
+                              // Fetch entries for the newly selected month
+                              _fetchEntriesForCurrentMonth();
                             });
                             Navigator.of(context).pop();
                           },
@@ -452,12 +469,12 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            padding: EdgeInsets.symmetric(
+                            padding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,
                             ),
                           ),
-                          child: Text(
+                          child: const Text(
                             'APPLY',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
@@ -479,8 +496,8 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
 
-    // Here you can access Riverpod providers using ref if needed
-    // Example: final someState = ref.watch(someProvider);
+    // Watch the async state of entries
+    final entriesAsyncValue = ref.watch(logEntriesProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -515,6 +532,9 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                       _focusedDay.year,
                       _focusedDay.month - 1,
                     );
+
+                    // Fetch entries for the previous month
+                    _fetchEntriesForCurrentMonth();
                   });
                 },
               ),
@@ -523,11 +543,14 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                 onTap: _showMonthYearPicker,
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: theme.colorScheme.secondary.withOpacity(0.3),
+                      color: theme.colorScheme.secondary.withAlpha(77),
                       width: 1,
                     ),
                   ),
@@ -561,6 +584,9 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
                       _focusedDay.year,
                       _focusedDay.month + 1,
                     );
+
+                    // Fetch entries for the next month
+                    _fetchEntriesForCurrentMonth();
                   });
                 },
               ),
@@ -569,96 +595,122 @@ class _JournalCalendarState extends ConsumerState<JournalCalendar> {
         ),
         const SizedBox(height: 8),
 
-        // Calendar
-        TableCalendar<Event>(
-          firstDay: DateTime.utc(widget.minYear ?? 2020, 1, 1),
-          lastDay: DateTime.utc(widget.maxYear ?? 2030, 12, 31),
-          focusedDay: _focusedDay,
-          selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-          startingDayOfWeek: StartingDayOfWeek.monday,
-          headerVisible: false,
-          daysOfWeekHeight: 36,
-          rowHeight: 48,
-          calendarStyle: CalendarStyle(
-            isTodayHighlighted: false,
-            outsideDaysVisible: false,
-            defaultTextStyle: TextStyle(
-              color: isDarkMode ? Colors.white : Colors.black87,
-              fontWeight: FontWeight.w500,
+        // Show loading indicator or error if needed
+        if (entriesAsyncValue.isLoading)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: CircularProgressIndicator(color: _baseColor),
             ),
-            weekendTextStyle: TextStyle(
-              color: isDarkMode ? Colors.white70 : Colors.black54,
+          )
+        else if (entriesAsyncValue.hasError)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Error loading calendar data',
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
             ),
-            cellMargin: const EdgeInsets.all(4),
-          ),
-          onDaySelected: (selectedDay, focusedDay) {
-            // Navigate to date detail page with the selected date parameters
-            final year = selectedDay.year;
-            final month = selectedDay.month;
-            final day = selectedDay.day;
+          )
+        else
+          // Calendar
+          TableCalendar<LogEntry>(
+            firstDay: DateTime.utc(widget.minYear ?? 2020, 1, 1),
+            lastDay: DateTime.utc(widget.maxYear ?? 2030, 12, 31),
+            focusedDay: _focusedDay,
+            selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+            startingDayOfWeek: StartingDayOfWeek.monday,
+            headerVisible: false,
+            daysOfWeekHeight: 36,
+            rowHeight: 48,
+            calendarStyle: CalendarStyle(
+              isTodayHighlighted: false,
+              outsideDaysVisible: false,
+              defaultTextStyle: TextStyle(
+                color: isDarkMode ? Colors.white : Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
+              weekendTextStyle: TextStyle(
+                color: isDarkMode ? Colors.white70 : Colors.black54,
+              ),
+              cellMargin: const EdgeInsets.all(4),
+            ),
+            onDaySelected: (selectedDay, focusedDay) {
+              // Navigate to date detail page with the selected date parameters
+              final year = selectedDay.year;
+              final month = selectedDay.month;
+              final day = selectedDay.day;
 
-            // Use the router to navigate to the date detail page
-            ref.read(routerProvider).go('/date/$year/$month/$day');
-            setState(() {
-              _selectedDay = selectedDay;
-              _focusedDay = focusedDay;
-            });
-          },
-          onPageChanged: (focusedDay) {
-            _focusedDay = focusedDay;
-            setState(() {});
-          },
-          calendarBuilders: CalendarBuilders<Event>(
-            defaultBuilder: (context, day, focusedDay) {
-              final events = _getEventsForDay(day);
-              final isToday = isSameDay(day, DateTime.now());
-              final isSelected = isSameDay(day, _selectedDay);
+              // Use the router to navigate to the date detail page
+              ref.read(routerProvider).go('/date/$year/$month/$day');
+              setState(() {
+                _selectedDay = selectedDay;
+                _focusedDay = focusedDay;
+              });
+            },
+            onPageChanged: (focusedDay) {
+              setState(() {
+                _focusedDay = focusedDay;
 
-              return Container(
-                margin: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _getDayBackgroundColor(events.length),
-                  border:
-                      isToday
-                          ? Border.all(color: const Color(0xFF034C5F), width: 3)
-                          : null,
-                ),
-                child: Center(
-                  child: Text(
-                    '${day.day}',
-                    style: TextStyle(
-                      color:
-                          isSelected
-                              ? Colors.white
-                              : _getDayTextColor(events.length),
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.normal,
+                // Fetch entries for the newly visible month
+                _fetchEntriesForCurrentMonth();
+              });
+            },
+            calendarBuilders: CalendarBuilders<LogEntry>(
+              defaultBuilder: (context, day, focusedDay) {
+                final entries = _getEntriesForDay(day);
+                final isToday = isSameDay(day, DateTime.now());
+                final isSelected = isSameDay(day, _selectedDay);
+
+                return Container(
+                  margin: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _getDayBackgroundColor(entries.length),
+                    border:
+                        isToday
+                            ? Border.all(
+                              color: const Color(0xFF034C5F),
+                              width: 3,
+                            )
+                            : null,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${day.day}',
+                      style: TextStyle(
+                        color:
+                            isSelected
+                                ? Colors.white
+                                : _getDayTextColor(entries.length),
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
-            selectedBuilder: (context, day, focusedDay) {
-              return Container(
-                margin: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _baseColor,
-                ),
-                child: Center(
-                  child: Text(
-                    '${day.day}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                );
+              },
+              selectedBuilder: (context, day, focusedDay) {
+                return Container(
+                  margin: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _baseColor,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${day.day}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
-        ),
       ],
     );
   }

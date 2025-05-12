@@ -5,6 +5,7 @@ import 'package:echo/shared/models/log_entry.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'dart:developer' as developer;
 
 // Define the provider for log entries
 final logEntriesProvider =
@@ -21,9 +22,16 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
   final StorageService _storageService;
   final String? _userId;
 
-  LogEntriesNotifier(this._storageService, this._userId)
-    : super(const AsyncValue.loading());
+  // Cache the currently loaded date range to avoid redundant fetches
+  DateTime? _currentRangeStart;
+  DateTime? _currentRangeEnd;
 
+  LogEntriesNotifier(this._storageService, this._userId)
+    : super(const AsyncValue.loading()) {
+    // Initial fetch can be done here if needed
+  }
+
+  // Fetch log entries for a specific date
   Future<void> fetchLogEntriesForDate(DateTime date) async {
     if (_userId == null) {
       state = const AsyncValue.error(
@@ -82,6 +90,83 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
     }
   }
 
+  // New method: Fetch log entries for a specific month/date range
+  Future<void> fetchEntriesForMonth(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    if (_userId == null) {
+      state = const AsyncValue.error(
+        'User not authenticated',
+        StackTrace.empty,
+      );
+      return;
+    }
+
+    // Check if the requested range is already loaded
+    if (_currentRangeStart != null &&
+        _currentRangeEnd != null &&
+        _isSameDay(startDate, _currentRangeStart!) &&
+        _isSameDay(endDate, _currentRangeEnd!)) {
+      // Range already loaded, no need to fetch again
+      return;
+    }
+
+    try {
+      // Set loading state only if we don't have data yet
+      if (!state.hasValue) {
+        state = const AsyncValue.loading();
+      }
+
+      // Query Firestore for log entries in the date range
+      final querySnapshot =
+          await _firestore
+              .collection('users')
+              .doc(_userId)
+              .collection('logs')
+              .where(
+                'timestamp',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+              )
+              .where(
+                'timestamp',
+                isLessThanOrEqualTo: Timestamp.fromDate(endDate),
+              )
+              .orderBy('timestamp', descending: false)
+              .get();
+
+      // Convert query results to LogEntry objects
+      final logEntries =
+          querySnapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id; // Add document ID to the data
+            return LogEntry.fromJson(data);
+          }).toList();
+
+      // Update the cache
+      _currentRangeStart = startDate;
+      _currentRangeEnd = endDate;
+
+      state = AsyncValue.data(logEntries);
+
+      if (kDebugMode) {
+        developer.log(
+          'Fetched ${logEntries.length} entries for month: ${startDate.month}/${startDate.year}',
+        );
+      }
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        print('Error fetching log entries for month: $error');
+      }
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  // Helper to check if two dates are the same day (ignoring time)
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
   // Add a new audio log entry
   Future<String?> addAudioLogEntry({
     required String audioUrl,
@@ -89,8 +174,7 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
     required Duration duration,
     String? title,
     DateTime? timestamp,
-    List<String> tags =
-        const [], // Added tags parameter with default empty list
+    List<String> tags = const [],
   }) async {
     if (_userId == null) return null;
 
@@ -317,7 +401,7 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
   }
 
   // Update audio log entry
-  void updateAudioEntry(AudioLogEntry updatedEntry) async {
+  Future<void> updateAudioEntry(AudioLogEntry updatedEntry) async {
     if (_userId == null) return;
 
     try {
@@ -362,5 +446,68 @@ class LogEntriesNotifier extends StateNotifier<AsyncValue<List<LogEntry>>> {
 
     // Add ellipsis if we truncated the transcription
     return words.length > 7 ? '$titleWords...' : titleWords;
+  }
+
+  // Debug method to log the current state
+  void debugLogState() {
+    if (kDebugMode) {
+      if (state.hasValue) {
+        developer.log('Current log entries: ${state.value?.length ?? 0}');
+        for (final entry in state.value ?? []) {
+          developer.log(
+            'Entry: ${entry.id} - ${entry.title} - ${entry.timestamp}',
+          );
+        }
+      } else if (state.isLoading) {
+        developer.log('Log entries state: LOADING');
+      } else if (state.hasError) {
+        developer.log('Log entries state: ERROR - ${state.error}');
+      }
+    }
+  }
+
+  // Get all log entries for a specific month
+  // This is useful for efficient calendar data loading
+  Future<void> fetchAllEntries() async {
+    if (_userId == null) {
+      state = const AsyncValue.error(
+        'User not authenticated',
+        StackTrace.empty,
+      );
+      return;
+    }
+
+    try {
+      state = const AsyncValue.loading();
+
+      // Query all entries, limited to avoid excessive data transfer
+      // You may want to adjust this limit or add pagination for production
+      final querySnapshot =
+          await _firestore
+              .collection('users')
+              .doc(_userId)
+              .collection('logs')
+              .orderBy('timestamp', descending: true)
+              .limit(500) // Safety limit
+              .get();
+
+      final logEntries =
+          querySnapshot.docs.map((doc) {
+            final data = doc.data();
+            data['id'] = doc.id;
+            return LogEntry.fromJson(data);
+          }).toList();
+
+      state = AsyncValue.data(logEntries);
+
+      if (kDebugMode) {
+        developer.log('Fetched ${logEntries.length} total entries');
+      }
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        developer.log('Error fetching all entries: $error');
+      }
+      state = AsyncValue.error(error, stackTrace);
+    }
   }
 }
