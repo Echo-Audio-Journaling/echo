@@ -1,5 +1,4 @@
 import 'package:echo/features/search/provider/search_provider.dart';
-import 'package:echo/features/search/widgets/search_dropdown.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
