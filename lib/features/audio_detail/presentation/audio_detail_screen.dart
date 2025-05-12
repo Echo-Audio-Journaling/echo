@@ -6,8 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class AudioDetailScreen extends ConsumerWidget {
   final String entryId;
+  final String previousRoute;
 
-  const AudioDetailScreen({super.key, required this.entryId});
+  const AudioDetailScreen({
+    super.key,
+    required this.entryId,
+    required this.previousRoute,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -63,7 +68,7 @@ class AudioDetailScreen extends ConsumerWidget {
         }
 
         // Entry found, display detail page
-        return AudioDetailWidget(entry: entry);
+        return AudioDetailWidget(entry: entry, previousRoute: previousRoute);
       },
       loading:
           () => Scaffold(

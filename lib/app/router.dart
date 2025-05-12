@@ -58,11 +58,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/audio/:id',
         builder: (context, state) {
           final entryId = state.pathParameters['id'] ?? '';
-          return AudioDetailScreen(entryId: entryId);
+          final previousRoute = state.extra as String? ?? 'home';
+          return AudioDetailScreen(
+            entryId: entryId,
+            previousRoute: previousRoute,
+          );
         },
       ),
       GoRoute(
         path: '/search',
+        name: 'search',
         builder: (context, state) => const SearchResultsPage(),
       ),
     ],

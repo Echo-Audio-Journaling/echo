@@ -130,7 +130,9 @@ class SearchDropdown extends ConsumerWidget {
                                 searchController.clear();
 
                                 // Navigate to audio detail and clear search focus
-                                ref.read(routerProvider).go('/audio/$id');
+                                ref
+                                    .read(routerProvider)
+                                    .go('/audio/$id', extra: 'home');
                                 searchFocusNode.unfocus();
                               },
                             );

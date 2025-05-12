@@ -195,6 +195,6 @@ class SearchPreviewCard extends ConsumerWidget {
 
   // Navigate to audio detail page
   void _navigateToAudio(WidgetRef ref) {
-    ref.read(routerProvider).go('/audio/${entry.id}');
+    ref.read(routerProvider).go('/audio/${entry.id}', extra: 'home');
   }
 }

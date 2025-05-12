@@ -252,7 +252,7 @@ class _SearchResultsPageState extends ConsumerState<SearchResultsPage> {
             isCompact: false, // Use full-size cards in the results page
             onTap: () {
               // Navigate to audio detail page
-              ref.read(routerProvider).go('/audio/$id');
+              ref.read(routerProvider).go('/audio/$id', extra: 'search');
             },
           ),
         );
