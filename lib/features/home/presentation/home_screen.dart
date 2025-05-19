@@ -93,10 +93,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.waves_rounded,
-                              size: 32,
-                              color: Colors.white,
+                            Image.asset(
+                              'assets/icons/echo_logo.png',
+                              width: 50,
+                              height: 50,
+                              fit: BoxFit.cover,
                             ),
                             const SizedBox(width: 12),
                             Text(
