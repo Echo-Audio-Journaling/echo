@@ -188,7 +188,6 @@ class _AudioDetailWidgetState extends ConsumerState<AudioDetailWidget> {
               ),
               TextButton(
                 onPressed: () {
-                  Navigator.pop(context); // Close dialog
                   _deleteEntry();
                 },
                 child: const Text(
@@ -208,12 +207,20 @@ class _AudioDetailWidgetState extends ConsumerState<AudioDetailWidget> {
         .deleteLogEntry(widget.entry.id, widget.entry.audioUrl);
 
     // Navigate back after deletion
-    Navigator.pop(context);
+    DateTime dateTime = widget.entry.timestamp;
+    final year = dateTime.year;
+    final month = dateTime.month;
+    final day = dateTime.day;
 
-    // Show confirmation
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Entry deleted')));
+    if (widget.previousRoute == "home") {
+      ref.read(routerProvider).go('/');
+    } else if (widget.previousRoute == "date_detail") {
+      ref.read(routerProvider).go('/date/$year/$month/$day');
+    } else if (widget.previousRoute == "search") {
+      ref.read(routerProvider).go('/search');
+    } else {
+      ref.read(routerProvider).go('/');
+    }
   }
 
   void _addTag() {

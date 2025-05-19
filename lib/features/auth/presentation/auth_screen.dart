@@ -34,10 +34,11 @@ class SignInWidget extends ConsumerWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
-                              Icons.auto_awesome_outlined,
-                              size: 60,
-                              color: Colors.white,
+                            Image.asset(
+                              'assets/icons/echo_logo.png',
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
                             ),
                             const SizedBox(height: 50),
                             const HypnoticSlogan(),
